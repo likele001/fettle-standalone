@@ -1,0 +1,127 @@
+global:
+  imageRegistry: ""
+  imageTag: latest
+  jwtSecret: change-me-in-production
+
+infra:
+  postgres:
+    enabled: true
+    host: postgres
+    port: 5432
+    user: ai_platform
+    password: ai_platform_secret
+    database: ai_platform
+
+  redis:
+    enabled: true
+    host: redis
+    port: 6379
+
+  mongodb:
+    enabled: true
+    uri: mongodb://mongodb:27017
+    database: ai_platform
+
+  nats:
+    enabled: true
+    url: nats://nats:4222
+
+  milvus:
+    enabled: true
+    host: milvus
+    port: 19530
+
+  minio:
+    enabled: true
+    endpoint: minio:9000
+    accessKey: ai_platform
+    secretKey: ai_platform_secret
+    bucket: documents
+
+services:
+  gateway:
+    enabled: true
+    port: 20001
+    replicas: 2
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+
+  userService:
+    enabled: true
+    port: 20002
+    replicas: 2
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+
+  agentService:
+    enabled: true
+    port: 20003
+    replicas: 2
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+
+  chatService:
+    enabled: true
+    port: 20004
+    replicas: 2
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+
+  skillService:
+    enabled: true
+    port: 20005
+    replicas: 1
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+
+  billingService:
+    enabled: true
+    port: 20006
+    replicas: 1
+
+  aiEngine:
+    enabled: true
+    httpPort: 20007
+    grpcPort: 20008
+    replicas: 2
+    qwenApiKey: ""
+    deepseekApiKey: ""
+    openaiApiKey: ""
+
+  webAdmin:
+    enabled: true
+    port: 80
+    replicas: 1
+
+  plugins:
+    enabled: true
+    wechat:
+      enabled: true
+      port: 9001
+      replicas: 1
+    wecom:
+      enabled: true
+      port: 9002
+      replicas: 1
+    feishu:
+      enabled: true
+      port: 9003
+      replicas: 1
+    dingtalk:
+      enabled: true
+      port: 9004
+      replicas: 1
+    douyin:
+      enabled: true
+      port: 9005
+      replicas: 1
+
+ingress:
+  enabled: true
+  host: ai-platform.example.com
+  className: nginx

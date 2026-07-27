@@ -1,0 +1,747 @@
+<template>
+  <div class="settings">
+    <div class="page-header">
+      <h2>系统设置</h2>
+    </div>
+
+    <el-tabs v-model="activeTab">
+      <el-tab-pane label="团队管理" name="team">
+        <div class="section">
+          <h3>团队成员</h3>
+          <el-button type="primary" size="small" @click="showInviteDialog">邀请成员</el-button>
+        </div>
+        <el-table :data="teamMembers" stripe>
+          <el-table-column prop="name" label="姓名" width="150" />
+          <el-table-column prop="email" label="邮箱" />
+          <el-table-column prop="role" label="角色" width="120">
+            <template #default="{ row }">
+              <el-tag size="small">{{ roleText(row.role) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="joined_at" label="加入时间" width="160">
+            <template #default="{ row }">{{ formatDate(row.joined_at) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="150">
+            <template #default="{ row }">
+              <el-button size="small" @click="editMember(row)">编辑</el-button>
+              <el-popconfirm title="确定移除？" @confirm="removeMember(row.id)">
+                <template #reference>
+                  <el-button size="small" type="danger">移除</el-button>
+                </template>
+              </el-popconfirm>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="计费套餐" name="billing">
+        <el-row :gutter="20">
+          <el-col :span="8" v-for="plan in plans" :key="plan.id">
+            <el-card class="plan-card" :class="{ current: plan.isCurrent }" shadow="hover">
+              <div class="plan-header">
+                <h3>{{ plan.name }}</h3>
+                <el-tag v-if="plan.isCurrent" type="success" size="small">当前套餐</el-tag>
+              </div>
+              <div class="plan-price">
+                <span class="price">¥{{ plan.price }}</span>
+                <span class="period">/{{ plan.period }}</span>
+              </div>
+              <ul class="plan-features">
+                <li v-for="(feature, index) in plan.features" :key="index">
+                  <el-icon color="#67C23A"><Check /></el-icon>
+                  {{ feature }}
+                </li>
+              </ul>
+              <el-button
+                v-if="!plan.isCurrent"
+                type="primary"
+                style="width: 100%"
+                @click="upgradePlan(plan.id)"
+              >
+                升级
+              </el-button>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
+
+      <el-tab-pane label="品牌定制" name="branding">
+        <el-row :gutter="24">
+          <el-col :span="14">
+            <el-form
+              :model="brandingForm"
+              label-width="100px"
+              style="max-width: 560px"
+            >
+              <el-form-item label="品牌名称">
+                <el-input
+                  v-model="brandingForm.brand_name"
+                  placeholder="请输入品牌名称"
+                />
+              </el-form-item>
+              <el-form-item label="Logo URL">
+                <el-input
+                  v-model="brandingForm.brand_logo_url"
+                  placeholder="请输入 Logo 图片地址"
+                />
+                <div v-if="brandingForm.brand_logo_url" class="logo-preview">
+                  <el-image
+                    :src="brandingForm.brand_logo_url"
+                    fit="contain"
+                    style="width: 120px; height: 40px"
+                  >
+                    <template #error>
+                      <div class="image-error">加载失败</div>
+                    </template>
+                  </el-image>
+                </div>
+              </el-form-item>
+              <el-form-item label="Favicon URL">
+                <el-input
+                  v-model="brandingForm.brand_favicon_url"
+                  placeholder="请输入 Favicon 图标地址"
+                />
+              </el-form-item>
+              <el-form-item label="主色调">
+                <el-color-picker v-model="brandingForm.brand_primary_color" />
+                <span class="color-value">{{ brandingForm.brand_primary_color }}</span>
+              </el-form-item>
+              <el-form-item label="辅助色">
+                <el-color-picker v-model="brandingForm.brand_secondary_color" />
+                <span class="color-value">{{ brandingForm.brand_secondary_color }}</span>
+              </el-form-item>
+              <el-form-item label="页脚文字">
+                <el-input
+                  v-model="brandingForm.brand_footer_text"
+                  placeholder="请输入页脚显示文字"
+                />
+              </el-form-item>
+              <el-form-item label="白标模式">
+                <el-tooltip
+                  :content="!isEnterprise ? '仅企业版套餐可用' : ''"
+                  placement="top"
+                  :disabled="isEnterprise"
+                >
+                  <el-switch
+                    v-model="brandingForm.white_label_enabled"
+                    :disabled="!isEnterprise"
+                  />
+                </el-tooltip>
+                <span class="form-note">仅企业版可用</span>
+              </el-form-item>
+              <el-form-item>
+                <el-button
+                  type="primary"
+                  :loading="brandingSaving"
+                  @click="saveBranding"
+                >
+                  保存
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </el-col>
+          <el-col :span="10">
+            <div class="branding-preview-card">
+              <h4 class="preview-title">预览效果</h4>
+              <div
+                class="preview-body"
+                :style="{ borderTopColor: brandingForm.brand_primary_color || '#409EFF' }"
+              >
+                <div class="preview-header" :style="{ backgroundColor: brandingForm.brand_primary_color || '#409EFF' }">
+                  <div class="preview-logo-area">
+                    <el-image
+                      v-if="brandingForm.brand_logo_url"
+                      :src="brandingForm.brand_logo_url"
+                      fit="contain"
+                      class="preview-logo-img"
+                    >
+                      <template #error>
+                        <div class="preview-logo-placeholder">
+                          {{ (brandingForm.brand_name || 'F').charAt(0) }}
+                        </div>
+                      </template>
+                    </el-image>
+                    <div v-else class="preview-logo-placeholder">
+                      {{ (brandingForm.brand_name || 'F').charAt(0) }}
+                    </div>
+                    <span class="preview-brand-name">
+                      {{ brandingForm.brand_name || '品牌名称' }}
+                    </span>
+                  </div>
+                </div>
+                <div class="preview-content">
+                  <div
+                    class="preview-accent-bar"
+                    :style="{ backgroundColor: brandingForm.brand_primary_color || '#409EFF' }"
+                  ></div>
+                  <div class="preview-text-lines">
+                    <div class="preview-line" style="width: 80%"></div>
+                    <div class="preview-line" style="width: 60%"></div>
+                    <div class="preview-line" style="width: 70%"></div>
+                  </div>
+                  <div class="preview-btn-row">
+                    <div
+                      class="preview-btn"
+                      :style="{ backgroundColor: brandingForm.brand_primary_color || '#409EFF' }"
+                    >
+                      操作按钮
+                    </div>
+                    <div
+                      class="preview-btn-outline"
+                      :style="{ color: brandingForm.brand_secondary_color || '#67C23A', borderColor: brandingForm.brand_secondary_color || '#67C23A' }"
+                    >
+                      辅助按钮
+                    </div>
+                  </div>
+                </div>
+                <div class="preview-footer">
+                  <span>{{ brandingForm.brand_footer_text || '页脚文字' }}</span>
+                  <span v-if="!brandingForm.white_label_enabled" class="preview-powered">
+                    Powered by Fettle
+                  </span>
+                </div>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
+
+      <el-tab-pane label="个人信息" name="profile">
+        <el-form :model="profileForm" label-width="100px" style="max-width: 500px">
+          <el-form-item label="头像">
+            <el-avatar :size="80" :src="profileForm.avatar">
+              {{ profileForm.name?.charAt(0) }}
+            </el-avatar>
+            <el-button size="small" style="margin-left: 16px">更换</el-button>
+          </el-form-item>
+          <el-form-item label="姓名" required>
+            <el-input v-model="profileForm.name" placeholder="请输入姓名" />
+          </el-form-item>
+          <el-form-item label="邮箱">
+            <el-input v-model="profileForm.email" placeholder="请输入邮箱" />
+          </el-form-item>
+          <el-form-item label="手机号">
+            <el-input v-model="profileForm.phone" placeholder="请输入手机号" disabled />
+          </el-form-item>
+          <el-form-item label="修改密码">
+            <el-button @click="pwdDialogVisible = true">修改密码</el-button>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="saveProfile">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- 邀请成员对话框 -->
+    <el-dialog v-model="inviteVisible" title="邀请成员" width="400px">
+      <el-form :model="inviteForm" label-width="80px">
+        <el-form-item label="邮箱" required>
+          <el-input v-model="inviteForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="inviteForm.role" placeholder="选择角色">
+            <el-option label="管理员" value="admin" />
+            <el-option label="运营" value="operator" />
+            <el-option label="客服" value="customer" />
+            <el-option label="访客" value="viewer" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="inviteVisible = false">取消</el-button>
+        <el-button type="primary" @click="sendInvite">发送邀请</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 修改密码对话框 -->
+    <el-dialog v-model="pwdDialogVisible" title="修改密码" width="400px">
+      <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="100px">
+        <el-form-item label="原密码" prop="old_password">
+          <el-input v-model="pwdForm.old_password" type="password" show-password placeholder="请输入原密码" />
+        </el-form-item>
+        <el-form-item label="新密码" prop="new_password">
+          <el-input v-model="pwdForm.new_password" type="password" show-password placeholder="请输入新密码（至少6位）" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirm_password">
+          <el-input v-model="pwdForm.confirm_password" type="password" show-password placeholder="请再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="pwdLoading" @click="submitChangePassword">确认修改</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Check } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user'
+import { listTeamMembers, inviteMember, removeMember as removeMemberApi, updateProfile } from '@/api/team'
+import { changePassword } from '@/api/auth'
+import { getBranding, updateBranding } from '@/api/branding'
+import type { BrandingConfig } from '@/api/branding'
+import type { TeamMember } from '@/api/team'
+import type { FormInstance, FormRules } from 'element-plus'
+import request from '@/api/request'
+
+const userStore = useUserStore()
+const activeTab = ref('team')
+
+interface Plan {
+  id: string
+  name: string
+  price: number
+  period: string
+  features: string[]
+  isCurrent: boolean
+}
+
+const teamMembers = ref<TeamMember[]>([])
+const inviteVisible = ref(false)
+const inviteForm = ref({
+  email: '',
+  role: 'operator'
+})
+
+const profileForm = ref({
+  avatar: '',
+  name: userStore.userInfo?.name || '',
+  email: userStore.userInfo?.email || '',
+  phone: userStore.userInfo?.phone || ''
+})
+
+// ========== 品牌定制 ==========
+const brandingForm = reactive<BrandingConfig>({
+  brand_name: '',
+  brand_logo_url: '',
+  brand_favicon_url: '',
+  brand_primary_color: '#409EFF',
+  brand_secondary_color: '#67C23A',
+  brand_footer_text: '',
+  white_label_enabled: false
+})
+const brandingSaving = ref(false)
+const tenantPlan = ref('')
+
+const isEnterprise = computed(() => tenantPlan.value === 'enterprise')
+
+async function loadBranding() {
+  try {
+    const data = await getBranding()
+    Object.assign(brandingForm, data)
+  } catch {
+    // 首次可能没有配置，使用默认值
+  }
+}
+
+async function loadTenantPlan() {
+  try {
+    const data = await request.get('/tenant/current') as any
+    tenantPlan.value = data?.plan_type || ''
+  } catch {
+    tenantPlan.value = ''
+  }
+}
+
+async function saveBranding() {
+  brandingSaving.value = true
+  try {
+    const data = await updateBranding({ ...brandingForm })
+    Object.assign(brandingForm, data)
+    ElMessage.success('品牌配置已保存')
+  } catch (e: any) {
+    ElMessage.error(e.message || '保存失败')
+  } finally {
+    brandingSaving.value = false
+  }
+}
+
+// ========== 修改密码 ==========
+const pwdDialogVisible = ref(false)
+const pwdFormRef = ref<FormInstance>()
+const pwdLoading = ref(false)
+const pwdForm = ref({
+  old_password: '',
+  new_password: '',
+  confirm_password: ''
+})
+
+const validateConfirm = (_rule: any, value: string, callback: any) => {
+  if (value !== pwdForm.value.new_password) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+const pwdRules: FormRules = {
+  old_password: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  new_password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码至少 6 位', trigger: 'blur' }
+  ],
+  confirm_password: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    { validator: validateConfirm, trigger: 'blur' }
+  ]
+}
+
+async function submitChangePassword() {
+  if (!pwdFormRef.value) return
+  await pwdFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    pwdLoading.value = true
+    try {
+      await changePassword({
+        old_password: pwdForm.value.old_password,
+        new_password: pwdForm.value.new_password
+      })
+      ElMessage.success('密码修改成功')
+      pwdDialogVisible.value = false
+      pwdForm.value = { old_password: '', new_password: '', confirm_password: '' }
+    } catch (e: any) {
+      ElMessage.error(e.message || '修改失败')
+    } finally {
+      pwdLoading.value = false
+    }
+  })
+}
+
+const plans = ref<Plan[]>([
+  {
+    id: 'free',
+    name: '免费版',
+    price: 0,
+    period: '月',
+    features: ['1 个智能体', '100 条消息/月', '基础功能'],
+    isCurrent: true
+  },
+  {
+    id: 'pro',
+    name: '专业版',
+    price: 299,
+    period: '月',
+    features: ['5 个智能体', '10000 条消息/月', '高级功能', '优先支持'],
+    isCurrent: false
+  },
+  {
+    id: 'enterprise',
+    name: '企业版',
+    price: 999,
+    period: '月',
+    features: ['无限智能体', '无限消息', '全部功能', '专属支持', '私有部署'],
+    isCurrent: false
+  }
+])
+
+const roleText = (role: string) => {
+  const map: Record<string, string> = {
+    super_admin: '超级管理员',
+    admin: '管理员',
+    operator: '运营',
+    customer: '客服',
+    viewer: '访客'
+  }
+  return map[role] || role
+}
+
+const formatDate = (date: string) => {
+  if (!date) return '-'
+  return new Date(date).toLocaleDateString('zh-CN')
+}
+
+const showInviteDialog = () => {
+  inviteForm.value = { email: '', role: 'operator' }
+  inviteVisible.value = true
+}
+
+const sendInvite = async () => {
+  try {
+    await inviteMember({ phone: inviteForm.value.email, role: inviteForm.value.role })
+    ElMessage.success('邀请已发送')
+    inviteVisible.value = false
+    loadTeamMembers()
+  } catch (e: any) {
+    ElMessage.error(e.message || '邀请失败')
+  }
+}
+
+const editMember = (member: TeamMember) => {
+  ElMessage.info('编辑功能开发中')
+}
+
+const removeMember = async (id: string) => {
+  try {
+    await removeMemberApi(id)
+    ElMessage.success('已移除')
+    loadTeamMembers()
+  } catch (e: any) {
+    ElMessage.error(e.message || '移除失败')
+  }
+}
+
+const upgradePlan = async (planId: string) => {
+  ElMessage.info('升级功能开发中')
+}
+
+const saveProfile = async () => {
+  try {
+    await updateProfile({ name: profileForm.value.name, email: profileForm.value.email })
+    userStore.setUser({ ...userStore.userInfo, name: profileForm.value.name, email: profileForm.value.email } as any)
+    ElMessage.success('保存成功')
+  } catch (e: any) {
+    ElMessage.error(e.message || '保存失败')
+  }
+}
+
+const loadTeamMembers = async () => {
+  try {
+    const data = await listTeamMembers()
+    teamMembers.value = data.items || []
+  } catch {
+    teamMembers.value = []
+  }
+}
+
+onMounted(() => {
+  loadTeamMembers()
+  loadBranding()
+  loadTenantPlan()
+})
+</script>
+
+<style scoped lang="scss">
+.settings {
+  padding: 0;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+
+  h2 {
+    margin: 0;
+    font-size: 20px;
+  }
+}
+
+.section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+
+  h3 {
+    margin: 0;
+    font-size: 16px;
+  }
+}
+
+.plan-card {
+  text-align: center;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: translateY(-4px);
+  }
+
+  &.current {
+    border-color: #409EFF;
+  }
+
+  .plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+
+    h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+  }
+
+  .plan-price {
+    margin-bottom: 24px;
+
+    .price {
+      font-size: 36px;
+      font-weight: bold;
+      color: #409EFF;
+    }
+
+    .period {
+      color: #999;
+      font-size: 14px;
+    }
+  }
+
+  .plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px 0;
+    text-align: left;
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      color: #666;
+    }
+  }
+}
+
+/* ========== 品牌定制 ========== */
+.logo-preview {
+  margin-top: 8px;
+
+  .image-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 40px;
+    background: #f5f7fa;
+    color: #c0c4cc;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+}
+
+.color-value {
+  margin-left: 12px;
+  color: #909399;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.form-note {
+  margin-left: 12px;
+  color: #e6a23c;
+  font-size: 12px;
+}
+
+/* 预览卡片 */
+.branding-preview-card {
+  position: sticky;
+  top: 20px;
+
+  .preview-title {
+    margin: 0 0 12px 0;
+    font-size: 15px;
+    color: #606266;
+  }
+
+  .preview-body {
+    border: 1px solid #e4e7ed;
+    border-radius: 8px;
+    overflow: hidden;
+    border-top: 3px solid #409EFF;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  .preview-header {
+    padding: 14px 16px;
+    background-color: #409EFF;
+  }
+
+  .preview-logo-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .preview-logo-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .preview-logo-placeholder {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+  }
+
+  .preview-brand-name {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .preview-content {
+    padding: 16px;
+  }
+
+  .preview-accent-bar {
+    height: 4px;
+    width: 40px;
+    border-radius: 2px;
+    margin-bottom: 14px;
+  }
+
+  .preview-text-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .preview-line {
+    height: 10px;
+    background: #f0f2f5;
+    border-radius: 4px;
+  }
+
+  .preview-btn-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .preview-btn {
+    padding: 6px 16px;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 12px;
+  }
+
+  .preview-btn-outline {
+    padding: 6px 16px;
+    border-radius: 4px;
+    border: 1px solid;
+    font-size: 12px;
+    background: transparent;
+  }
+
+  .preview-footer {
+    padding: 10px 16px;
+    border-top: 1px solid #f0f2f5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #909399;
+  }
+
+  .preview-powered {
+    color: #c0c4cc;
+    font-style: italic;
+  }
+}
+</style>

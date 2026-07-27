@@ -1,0 +1,171 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: '1.25.0'
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [gateway, user-service, agent-service, chat-service, billing-service, skill-service]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        check-latest: true
+
+    - name: Set GOPATH
+      run: echo "GOPATH=$HOME/go" >> $GITHUB_ENV
+
+    - name: Build Service
+      working-directory: backend/${{ matrix.service }}
+      run: |
+        go mod tidy
+        go build -v -o main .
+
+    - name: Run Tests
+      working-directory: backend/${{ matrix.service }}
+      run: go test -v ./...
+
+  build-ai-engine:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Dependencies
+      working-directory: backend/ai-engine
+      run: |
+        pip install flake8 pyyaml pytest
+        pip install -r requirements.txt || true
+
+    - name: Lint
+      working-directory: backend/ai-engine
+      run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    - name: Syntax check
+      working-directory: backend/ai-engine
+      run: find . -name "*.py" -not -path "./proto/*" -exec python3 -m py_compile {} \;
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [web-admin, web-platform]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v5
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/${{ matrix.app }}/package-lock.json
+
+    - name: Install Dependencies
+      working-directory: frontend/${{ matrix.app }}
+      run: npm ci
+
+    - name: Build
+      working-directory: frontend/${{ matrix.app }}
+      run: npm run build
+
+  build-mini-app:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v5
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install Dependencies
+      working-directory: frontend/mini-app
+      run: npm ci
+
+    - name: Build WeChat Mini App
+      working-directory: frontend/mini-app
+      run: npm run build:mp-weixin
+
+  docker-build:
+    needs: [build-backend, build-ai-engine, build-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service: [gateway, user-service, agent-service, chat-service, billing-service, skill-service, ai-engine]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and Push
+      uses: docker/build-push-action@v5
+      with:
+        context: backend/${{ matrix.service }}
+        push: true
+        tags: fettle/${{ matrix.service }}:${{ github.sha }},fettle/${{ matrix.service }}:latest
+
+  deploy-k8s:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+
+    - name: Update K8s deployment image
+      run: |
+        kubectl set image deployment/gateway gateway=fettle/gateway:${{ github.sha }} -n fettle
+        kubectl set image deployment/user-service user-service=fettle/user-service:${{ github.sha }} -n fettle
+        kubectl set image deployment/agent-service agent-service=fettle/agent-service:${{ github.sha }} -n fettle
+        kubectl set image deployment/chat-service chat-service=fettle/chat-service:${{ github.sha }} -n fettle
+        kubectl set image deployment/billing-service billing-service=fettle/billing-service:${{ github.sha }} -n fettle
+        kubectl set image deployment/skill-service skill-service=fettle/skill-service:${{ github.sha }} -n fettle
+        kubectl set image deployment/ai-engine ai-engine=fettle/ai-engine:${{ github.sha }} -n fettle
+
+    - name: Wait for rollout
+      run: |
+        kubectl rollout status deployment/gateway -n fettle
+        kubectl rollout status deployment/user-service -n fettle
+        kubectl rollout status deployment/agent-service -n fettle
+        kubectl rollout status deployment/chat-service -n fettle
+        kubectl rollout status deployment/billing-service -n fettle
+        kubectl rollout status deployment/skill-service -n fettle
+        kubectl rollout status deployment/ai-engine -n fettle

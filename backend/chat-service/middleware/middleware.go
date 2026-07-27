@@ -1,0 +1,65 @@
+package middleware
+
+import (
+	"ai-platform/shared/middleware"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+)
+
+type Claims = middleware.Claims
+
+type AdminClaims struct {
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
+	jwt.RegisteredClaims
+}
+
+var JWTAuthMiddleware = middleware.JWTAuthMiddleware
+var TenantMiddleware = middleware.TenantMiddleware
+var LoggerMiddleware = middleware.LoggerMiddleware
+var CORSMiddleware = middleware.CORSMiddleware
+var TraceMiddleware = middleware.TraceMiddleware
+var EitherAuthMiddleware = middleware.EitherAuthMiddleware
+
+// AdminAuth admin auth middleware - requires super_admin role, no tenant_id needed
+func AdminAuth(secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 1002, "message": "missing authorization header"})
+			c.Abort()
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 1002, "message": "invalid authorization format"})
+			c.Abort()
+			return
+		}
+
+		claims := &AdminClaims{}
+		token, err := jwt.ParseWithClaims(parts[1], claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte(secret), nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 1002, "message": "invalid or expired token"})
+			c.Abort()
+			return
+		}
+
+		if claims.Role != "super_admin" {
+			c.JSON(http.StatusForbidden, gin.H{"code": 1003, "message": "insufficient permissions"})
+			c.Abort()
+			return
+		}
+
+		c.Set("user_id", claims.UserID)
+		c.Set("role", claims.Role)
+		c.Next()
+	}
+}

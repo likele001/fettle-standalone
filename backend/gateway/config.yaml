@@ -1,0 +1,35 @@
+server:
+  port: 20001
+  mode: release  # debug | release | test
+
+jwt:
+  secret: "89728af7c8e3d2c121cce0a5e056e90cc06787b003d0097b9fe0acbd3e9f072d"
+  expire_hours: 72
+  refresh_expire_hours: 168
+
+database:
+  host: 127.0.0.1
+  port: 5432
+  user: ai_platform
+  password: ai_platform_secret
+  dbname: ai_platform
+  sslmode: disable
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  db: 0
+
+services:
+  user_service: "http://localhost:20002"
+  agent_service: "http://localhost:20003"
+  chat_service: "http://localhost:20004"
+  billing_service: "http://localhost:20006"
+  skill_service: "http://localhost:20005"
+  ai_engine: "http://localhost:20007"
+
+log:
+  level: info
+  format: json
+  output: stdout

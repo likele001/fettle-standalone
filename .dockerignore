@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+.opencode
+.github
+
+# Docs & misc
+*.md
+docs
+scripts
+scripts_backup
+开发需求
+PROJECT_ANALYSIS_REPORT.md
+SECURITY.md
+
+# Frontend (only needed for web-admin build, handled separately)
+frontend/web-admin/node_modules
+frontend/web-website
+frontend/mini-app
+frontend/web-platform
+
+# Build artifacts
+bin
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+venv
+
+# Plugins (not in this deployment)
+plugins
+
+# Existing deploy configs (we create our own at root)
+deploy
+
+# Backup files
+*.bak
+.env.bak
+.env.example
+
+# Fix scripts
+fix_build.py
+fix_permission.py

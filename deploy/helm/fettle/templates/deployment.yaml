@@ -1,0 +1,100 @@
+{{- range $name, $service := .Values.services }}
+{{- if $service.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "fettle.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $service.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.global.imageRegistry }}/fettle-{{ $name }}:{{ $.Values.global.imageTag }}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ $service.port | default 80 }}
+              protocol: TCP
+          {{- if $service.resources }}
+          resources:
+            requests:
+              memory: {{ $service.resources.requests.memory }}
+              cpu: {{ $service.resources.requests.cpu }}
+            limits:
+              memory: {{ $service.resources.limits.memory }}
+              cpu: {{ $service.resources.limits.cpu }}
+          {{- end }}
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secrets
+                  key: jwt-secret
+            - name: DB_HOST
+              value: {{ $.Values.infra.postgres.host }}
+            - name: DB_PORT
+              value: "{{ $.Values.infra.postgres.port }}"
+            - name: DB_USER
+              value: {{ $.Values.infra.postgres.user }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secrets
+                  key: db-password
+            - name: DB_NAME
+              value: {{ $.Values.infra.postgres.database }}
+            - name: REDIS_ADDR
+              value: "{{ $.Values.infra.redis.host }}:{{ $.Values.infra.redis.port }}"
+            - name: NATS_URL
+              value: {{ $.Values.infra.nats.url }}
+          {{- if eq $name "aiEngine" }}
+            - name: APP_HTTP_PORT
+              value: "{{ $service.httpPort }}"
+            - name: APP_GRPC_PORT
+              value: "{{ $service.grpcPort }}"
+            - name: QWEN_API_KEY
+              value: {{ $service.qwenApiKey }}
+            - name: DEEPSEEK_API_KEY
+              value: {{ $service.deepseekApiKey }}
+            - name: OPENAI_API_KEY
+              value: {{ $service.openaiApiKey }}
+          {{- end }}
+          {{- if eq $name "chatService" }}
+            - name: MONGODB_URI
+              value: {{ $.Values.infra.mongodb.uri }}
+            - name: MONGODB_DATABASE
+              value: {{ $.Values.infra.mongodb.database }}
+          {{- end }}
+          {{- if hasKey $service "httpPort" }}
+          ports:
+            - containerPort: {{ $service.httpPort }}
+              name: http
+            - containerPort: {{ $service.grpcPort }}
+              name: grpc
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  selector:
+    app: {{ $name }}
+  ports:
+    - port: {{ $service.port | default 80 }}
+      targetPort: {{ $service.port | default 80 }}
+      protocol: TCP
+{{- end }}
+{{- end }}

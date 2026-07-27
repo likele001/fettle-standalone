@@ -1,0 +1,14 @@
+app:
+  name: "feishu-plugin"
+  port: 20024
+  log_level: "info"
+
+feishu:
+  app_id: ""
+  app_secret: ""
+
+nats:
+  url: "nats://localhost:20013"
+
+chat_service:
+  addr: "http://localhost:20004"

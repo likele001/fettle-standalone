@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: douyin-plugin
+  namespace: fettle
+  labels:
+    app: douyin-plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: douyin-plugin
+  template:
+    metadata:
+      labels:
+        app: douyin-plugin
+    spec:
+      containers:
+      - name: douyin-plugin
+        image: fettle/douyin-plugin:latest
+        ports:
+        - containerPort: 9005
+        env:
+        - name: NATS_ADDR
+          value: "nats:4222"
+        - name: GATEWAY_ADDR
+          value: "gateway:20001"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: douyin-plugin
+  namespace: fettle
+spec:
+  selector:
+    app: douyin-plugin
+  ports:
+  - port: 9005
+    targetPort: 9005
+  type: ClusterIP

@@ -1,0 +1,44 @@
+/* 响应式表格容器 */
+.el-table {
+  max-width: 100%;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper .el-table {
+  min-width: 600px;
+}
+
+/* 让所有 el-table 在小屏上可横向滚动 */
+@media (max-width: 767px) {
+  .el-table {
+    overflow-x: auto;
+  }
+  .el-table__body-wrapper {
+    overflow-x: auto !important;
+  }
+}
+
+/* 响应式工具类 */
+.hidden-xs {
+  @media (max-width: 767px) {
+    display: none !important;
+  }
+}
+
+/* 移动端卡片容器 */
+.mobile-card {
+  @media (max-width: 767px) {
+    padding: 12px;
+  }
+}
+
+/* Element Plus 表单在移动端 */
+@media (max-width: 767px) {
+  .el-form-item {
+    flex-wrap: wrap;
+  }
+}

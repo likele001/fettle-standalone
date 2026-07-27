@@ -1,0 +1,31 @@
+app:
+  name: "chat-service"
+  port: 20004
+  env: "development"
+  log_level: "info"
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "ai_platform"
+  password: "ai_platform_secret"
+  database: "ai_platform"
+  ssl_mode: "disable"
+
+mongodb:
+  uri: "mongodb://localhost:20012"
+  database: "ai_platform"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+nats:
+  url: "nats://localhost:20013"
+
+agent_service:
+  addr: "http://localhost:20003"
+
+ai_engine:
+  grpc_addr: "localhost:20008"
