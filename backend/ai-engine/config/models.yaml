@@ -1,0 +1,98 @@
+# AI 模型配置
+models:
+  # 通义千问
+  qwen-plus:
+    provider: qwen
+    model_name: qwen-plus
+    max_tokens: 2000
+    temperature: 0.7
+    cost_per_1k_tokens: 0.008
+    capabilities:
+      - chat
+      - reasoning
+    
+  qwen-turbo:
+    provider: qwen
+    model_name: qwen-turbo
+    max_tokens: 1500
+    temperature: 0.7
+    cost_per_1k_tokens: 0.004
+    capabilities:
+      - chat
+  
+  qwen-max:
+    provider: qwen
+    model_name: qwen-max
+    max_tokens: 4000
+    temperature: 0.7
+    cost_per_1k_tokens: 0.02
+    capabilities:
+      - chat
+      - reasoning
+      - complex_tasks
+  
+  # DeepSeek
+  deepseek-chat:
+    provider: deepseek
+    model_name: deepseek-chat
+    max_tokens: 2000
+    temperature: 0.7
+    cost_per_1k_tokens: 0.007
+    capabilities:
+      - chat
+      - code
+  
+  # MiniMax
+  minimax-abab5.5:
+    provider: minimax
+    model_name: abab5.5-chat
+    max_tokens: 2000
+    temperature: 0.7
+    cost_per_1k_tokens: 0.01
+    capabilities:
+      - chat
+  
+  # OpenAI (如果可用)
+  gpt-4o:
+    provider: openai
+    model_name: gpt-4o
+    max_tokens: 4000
+    temperature: 0.7
+    cost_per_1k_tokens: 0.05
+    capabilities:
+      - chat
+      - reasoning
+      - vision
+      - complex_tasks
+
+# 嵌入模型
+embeddings:
+  text-embedding-v2:
+    provider: qwen
+    model_name: text-embedding-v2
+    dimension: 1536
+    cost_per_1k_tokens: 0.0007
+  
+  text-embedding-3-small:
+    provider: openai
+    model_name: text-embedding-3-small
+    dimension: 1536
+    cost_per_1k_tokens: 0.0001
+
+# 模型路由策略
+routing:
+  # 默认策略
+  default_strategy: cost_optimized
+  
+  # 按任务类型路由
+  task_routing:
+    simple_chat: qwen-turbo
+    complex_reasoning: qwen-max
+    code_generation: deepseek-chat
+    knowledge_qa: qwen-plus
+  
+  # 按租户套餐路由
+  tenant_routing:
+    free: qwen-turbo
+    pro: qwen-plus
+    enterprise: qwen-max

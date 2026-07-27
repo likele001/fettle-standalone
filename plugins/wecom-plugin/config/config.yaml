@@ -1,0 +1,17 @@
+app:
+  name: "wecom-plugin"
+  port: 20022
+  log_level: "info"
+
+wecom:
+  corp_id: ""
+  agent_id: ""
+  secret: ""
+  token: ""
+  encoding_aes_key: ""
+
+nats:
+  url: "nats://localhost:20013"
+
+chat_service:
+  addr: "http://localhost:20004"

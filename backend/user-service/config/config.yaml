@@ -1,0 +1,19 @@
+app:
+  name: "user-service"
+  port: 20002
+  env: "development"
+  log_level: "info"
+  jwt_secret: ""
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "ai_platform"
+  password: "CHANGE_ME"
+  database: "ai_platform"
+  ssl_mode: "disable"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0

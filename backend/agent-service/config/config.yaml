@@ -1,0 +1,22 @@
+app:
+  name: "agent-service"
+  port: 20003
+  env: "development"
+  log_level: "info"
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "ai_platform"
+  password: "CHANGE_ME"
+  database: "ai_platform"
+  ssl_mode: "disable"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+ai_engine:
+  grpc_addr: "localhost:20008"
+  timeout: 30

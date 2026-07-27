@@ -1,0 +1,119 @@
+# ============================================
+# Fettle AI Engine - 配置文件
+# ============================================
+
+app:
+  name: "fettle-ai-engine"
+  version: "1.0.0"
+  env: "production"
+
+server:
+  grpc_port: 9106
+  http_port: 9107
+
+database:
+  postgres:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: your-password
+    dbname: fettle_ai_engine
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    database: "fettle_memory"
+  redis:
+    host: localhost
+    port: 6379
+    db: 6
+
+vector_db:
+  milvus:
+    host: localhost
+    port: 19530
+    collection_name: "fettle_knowledge"
+
+message_queue:
+  nats:
+    url: "nats://localhost:4222"
+
+models:
+  providers:
+    qwen:
+      api_key: ""
+      models: ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-long"]
+    deepseek:
+      api_key: ""
+      models: ["deepseek-chat", "deepseek-reasoner", "deepseek-coder"]
+    minimax:
+      api_key: ""
+      group_id: ""
+      models: ["abab5.5-chat", "abab5.5-completion"]
+    openai:
+      api_key: ""
+      base_url: "https://api.openai.com/v1"
+      models: ["gpt-4o", "gpt-4o-mini"]
+
+  routing:
+    default_model: "qwen-turbo"
+    fallback_model: "qwen-turbo"
+
+  cache:
+    enabled: true
+    ttl: 3600  # 1 hour
+
+intent:
+  rules_file: "config/intent_rules.yaml"
+  confidence_threshold: 0.7
+
+memory:
+  working:
+    max_items: 100
+    ttl: 3600
+  session:
+    max_sessions: 1000
+    ttl: 86400  # 24 hours
+  long_term:
+    enabled: true
+    storage: "milvus"
+
+rag:
+  embedding:
+    provider: "qwen"
+    model: "text-embedding-v1"
+    dimension: 1536
+  
+  retrieval:
+    top_k: 10
+    similarity_threshold: 0.7
+  
+  text_splitter:
+    chunk_size: 500
+    chunk_overlap: 50
+
+tools:
+  sandbox:
+    enabled: true
+    docker_image: "fettle/sandbox:latest"
+    timeout: 30
+  
+  builtin_tools:
+    - name: "web_search"
+      enabled: true
+    - name: "calculator"
+      enabled: true
+    - name: "datetime"
+      enabled: true
+
+celery:
+  broker: "redis://localhost:6379/7"
+  backend: "redis://localhost:6379/8"
+
+logging:
+  level: "INFO"
+  format: "json"
+  file: "/var/log/fettle/ai-engine.log"
+
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090

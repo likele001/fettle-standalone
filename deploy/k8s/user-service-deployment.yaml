@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: fettle
+  labels:
+    app: user-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: fettle/user-service:latest
+        ports:
+        - containerPort: 20015
+        env:
+        - name: CONFIG_PATH
+          value: /app/config.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: config
+        configMap:
+          name: user-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: fettle
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 20015
+    targetPort: 20015
+  type: ClusterIP

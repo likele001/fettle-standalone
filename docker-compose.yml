@@ -1,0 +1,176 @@
+# Fettle Standalone - Docker Compose (host network mode)
+# Connects to existing infrastructure running on the server (bare metal or Docker)
+# Infrastructure: PostgreSQL(20010), Redis(20011), MongoDB(20012), NATS(20013), MinIO(20015), Milvus(20017)
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: backend/gateway/deploy/Dockerfile
+    container_name: fettle-gateway
+    network_mode: host
+    environment:
+      - APP_PORT=20001
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_ADDR=127.0.0.1:6379
+    volumes:
+      - ./backend/gateway/config:/app/config:ro
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  user-service:
+    build:
+      context: .
+      dockerfile: backend/user-service/deploy/Dockerfile
+    container_name: fettle-user-service
+    network_mode: host
+    environment:
+      - APP_PORT=20002
+      - DB_HOST=127.0.0.1
+      - DB_PORT=5432
+      - DB_USER=ai_platform
+      - DB_PASSWORD=CHANGE_ME
+      - DB_NAME=ai_platform
+      - REDIS_ADDR=127.0.0.1:6379
+      - JWT_SECRET=${JWT_SECRET}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  agent-service:
+    build:
+      context: .
+      dockerfile: backend/agent-service/deploy/Dockerfile
+    container_name: fettle-agent-service
+    network_mode: host
+    environment:
+      - APP_PORT=20003
+      - DB_HOST=127.0.0.1
+      - DB_PORT=5432
+      - DB_USER=ai_platform
+      - DB_PASSWORD=CHANGE_ME
+      - DB_NAME=ai_platform
+      - REDIS_ADDR=127.0.0.1:6379
+      - AI_ENGINE_GRPC_ADDR=127.0.0.1:20008
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: backend/chat-service/deploy/Dockerfile
+    container_name: fettle-chat-service
+    network_mode: host
+    environment:
+      - APP_PORT=20004
+      - DB_HOST=127.0.0.1
+      - DB_PORT=5432
+      - DB_USER=ai_platform
+      - DB_PASSWORD=CHANGE_ME
+      - DB_NAME=ai_platform
+      - MONGO_URI=mongodb://ai_platform:CHANGE_ME@127.0.0.1:27017/ai_platform
+      - REDIS_ADDR=127.0.0.1:6379
+      - NATS_ADDR=127.0.0.1:4222
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  skill-service:
+    build:
+      context: .
+      dockerfile: backend/skill-service/deploy/Dockerfile
+    container_name: fettle-skill-service
+    network_mode: host
+    environment:
+      - APP_PORT=20005
+      - DB_HOST=127.0.0.1
+      - DB_PORT=5432
+      - DB_USER=ai_platform
+      - DB_PASSWORD=CHANGE_ME
+      - DB_NAME=ai_platform
+      - MINIO_ENDPOINT=127.0.0.1:9000
+      - MINIO_ACCESS_KEY=ai_platform
+      - MINIO_SECRET_KEY=CHANGE_ME
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  billing-service:
+    build:
+      context: .
+      dockerfile: backend/billing-service/deploy/Dockerfile
+    container_name: fettle-billing-service
+    network_mode: host
+    environment:
+      - APP_PORT=20006
+      - DB_HOST=127.0.0.1
+      - DB_PORT=5432
+      - DB_USER=ai_platform
+      - DB_PASSWORD=CHANGE_ME
+      - DB_NAME=ai_platform
+      - REDIS_ADDR=127.0.0.1:6379
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  ai-engine:
+    build:
+      context: .
+      dockerfile: backend/ai-engine/deploy/Dockerfile
+    container_name: fettle-ai-engine
+    network_mode: host
+    environment:
+      - APP_HTTP_PORT=20007
+      - APP_GRPC_PORT=20008
+      - DB_HOST=127.0.0.1
+      - DB_PORT=5432
+      - DB_USER=ai_platform
+      - DB_PASSWORD=CHANGE_ME
+      - DB_NAME=ai_platform
+      - REDIS_HOST=127.0.0.1
+      - REDIS_PORT=6379
+      - MILVUS_HOST=127.0.0.1
+      - MILVUS_PORT=19530
+      - NATS_URL=nats://127.0.0.1:4222
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  web-admin:
+    build:
+      context: .
+      dockerfile: frontend/web-admin/deploy/Dockerfile
+    container_name: fettle-web-admin
+    ports:
+      - "20009:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"

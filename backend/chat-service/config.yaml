@@ -1,0 +1,29 @@
+server:
+  port: 20019
+  mode: release
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: your-password
+  dbname: fettle_chat
+  sslmode: disable
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 3
+
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "fettle_chat"
+
+ai_engine:
+  url: "http://localhost:9106"
+
+log:
+  level: info
+  format: json
+  output: stdout

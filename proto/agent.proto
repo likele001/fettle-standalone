@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package agent;
+
+option go_package = "backend/agent-service/proto";
+
+service AgentService {
+  rpc GetAgent(GetAgentRequest) returns (GetAgentResponse);
+  rpc CreateAgent(CreateAgentRequest) returns (CreateAgentResponse);
+  rpc UpdateAgent(UpdateAgentRequest) returns (UpdateAgentResponse);
+  rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+}
+
+message Agent {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string description = 4;
+  string avatar = 5;
+  string model_id = 6;
+  string system_prompt = 7;
+  string status = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message GetAgentRequest {
+  string id = 1;
+}
+
+message GetAgentResponse {
+  Agent agent = 1;
+}
+
+message CreateAgentRequest {
+  string tenant_id = 1;
+  string name = 2;
+  string description = 3;
+  string avatar = 4;
+  string model_id = 5;
+  string system_prompt = 6;
+}
+
+message CreateAgentResponse {
+  Agent agent = 1;
+}
+
+message UpdateAgentRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string avatar = 4;
+  string model_id = 5;
+  string system_prompt = 6;
+  string status = 7;
+}
+
+message UpdateAgentResponse {
+  Agent agent = 1;
+}
+
+message DeleteAgentRequest {
+  string id = 1;
+}
+
+message DeleteAgentResponse {
+  bool success = 1;
+}
+
+message ListAgentsRequest {
+  string tenant_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  string status = 4;
+}
+
+message ListAgentsResponse {
+  repeated Agent agents = 1;
+  int32 total = 2;
+}

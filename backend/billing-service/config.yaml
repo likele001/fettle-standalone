@@ -1,0 +1,32 @@
+server:
+  port: 20020
+  mode: release
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: your-password
+  dbname: fettle_billing
+  sslmode: disable
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 4
+
+payment:
+  wechat_pay:
+    app_id: ""
+    mch_id: ""
+    api_key: ""
+  alipay:
+    app_id: ""
+    private_key: ""
+    public_key: ""
+
+log:
+  level: info
+  format: json
+  output: stdout

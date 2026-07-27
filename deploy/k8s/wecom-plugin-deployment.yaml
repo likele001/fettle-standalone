@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wecom-plugin
+  namespace: fettle
+  labels:
+    app: wecom-plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wecom-plugin
+  template:
+    metadata:
+      labels:
+        app: wecom-plugin
+    spec:
+      containers:
+      - name: wecom-plugin
+        image: fettle/wecom-plugin:latest
+        ports:
+        - containerPort: 9002
+        env:
+        - name: NATS_ADDR
+          value: "nats:4222"
+        - name: GATEWAY_ADDR
+          value: "gateway:20001"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wecom-plugin
+  namespace: fettle
+spec:
+  selector:
+    app: wecom-plugin
+  ports:
+  - port: 9002
+    targetPort: 9002
+  type: ClusterIP

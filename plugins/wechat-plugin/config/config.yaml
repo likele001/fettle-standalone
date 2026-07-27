@@ -1,0 +1,17 @@
+app:
+  name: "wechat-plugin"
+  port: 20005
+  env: "development"
+  log_level: "info"
+
+wechat:
+  app_id: ""
+  app_secret: ""
+  token: ""
+  encoding_aes_key: ""
+
+nats:
+  url: "nats://localhost:20013"
+
+chat_service:
+  addr: "http://localhost:20004"
