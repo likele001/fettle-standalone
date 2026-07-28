@@ -84,3 +84,6 @@ plugins/wecom-plugin/wecom-plugin
 pkg/
 docs/fettle-改造记录.md
 .trae/documents/fettle_maxkb_integration_plan.md
+
+# Milvus runtime data (do not track)
+deploy/milvus/data/
