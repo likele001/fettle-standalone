@@ -137,3 +137,33 @@ func (h *AgentHandler) DeleteAgent(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success"})
 }
+
+// TestChat 测试智能体对话
+func (h *AgentHandler) TestChat(c *gin.Context) {
+	tenantID, ok := middleware.GetTenantID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 1002, "message": "unauthorized"})
+		return
+	}
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		userID = "test"
+	}
+
+	var req struct {
+		AgentID string `json:"agent_id" binding:"required"`
+		Message string `json:"message" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": err.Error()})
+		return
+	}
+
+	reply, err := h.agentService.TestChat(c.Request.Context(), tenantID, userID, req.AgentID, req.Message)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 5000, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"reply": reply})
+}

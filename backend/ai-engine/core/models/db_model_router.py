@@ -18,8 +18,8 @@ class ModelConfig:
     model_code: str
     max_input_tokens: int
     max_output_tokens: int
-    input_price_per_1k: float
-    output_price_per_1k: float
+    input_price_per1k: float
+    output_price_per1k: float
     capabilities: List[str]
     is_default: bool
 
@@ -47,8 +47,8 @@ class DBModelRouter:
                 model_code=m.model_code,
                 max_input_tokens=m.max_input_tokens,
                 max_output_tokens=m.max_output_tokens,
-                input_price_per_1k=m.input_price_per_1k,
-                output_price_per_1k=m.output_price_per_1k,
+                input_price_per1k=m.input_price_per1k,
+                output_price_per1k=m.output_price_per1k,
                 capabilities=m.capabilities,
                 is_default=m.is_default,
             )
@@ -95,10 +95,36 @@ class DBModelRouter:
                 if model.provider_id == tenant_config.default_provider_id and model.is_default:
                     return model
         
-        # 5. 平台默认（第一个可用模型）
+        # 5. 租户有 API key 的厂商的 chat-capable 默认模型
+        tenant_keys = await ai_config_db.list_tenant_api_keys(tenant_id)
+        if tenant_keys:
+            keyed_provider_ids = {k.provider_id for k in tenant_keys if k.status == "active"}
+
+            def is_chat(m) -> bool:
+                caps = m.capabilities or []
+                return "chat" in caps
+
+            # 5a. 优先: keyed provider 的 is_default=True 且 chat-capable
+            for _, model in models.items():
+                if model.provider_id in keyed_provider_ids and model.is_default and is_chat(model):
+                    logger.info(
+                        f"select_model: chose tenant-keyed provider={model.provider_code} "
+                        f"model={model.model_code} (tenant has key, is_default, chat)"
+                    )
+                    return model
+            # 5b. 退化: keyed provider 的任何 chat model
+            for _, model in models.items():
+                if model.provider_id in keyed_provider_ids and is_chat(model):
+                    logger.info(
+                        f"select_model: chose tenant-keyed provider={model.provider_code} "
+                        f"model={model.model_code} (tenant has key, chat)"
+                    )
+                    return model
+
+        # 6. 平台默认（第一个可用模型）
         if models:
             return next(iter(models.values()))
-        
+
         raise ValueError("No available models in database")
     
     async def select_embedding_model(

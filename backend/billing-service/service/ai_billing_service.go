@@ -144,7 +144,7 @@ func (s *AIBillingService) GetUsageDetails(tenantID uuid.UUID, page, pageSize in
 }
 
 // GetPlatformPricing 获取平台模型定价
-func (s *AIBillingService) GetPlatformPricing() ([]models.PlatformModelPricing, error) {
+func (s *AIBillingService) GetPlatformPricing() ([]models.ModelPricingView, error) {
 	return s.repo.GetPlatformPricing()
 }
 

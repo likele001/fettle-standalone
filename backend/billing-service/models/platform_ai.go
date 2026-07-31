@@ -19,6 +19,14 @@ type PlatformModelPricing struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
+// ModelPricingView 平台定价展示视图（JOIN ai_models，按每百万 Token 返回，匹配前端字段名）
+type ModelPricingView struct {
+	ID          uuid.UUID `json:"id"`
+	ModelName   string    `json:"model_name"`
+	InputPrice  float64   `json:"input_price"`  // 每百万 Token
+	OutputPrice float64   `json:"output_price"` // 每百万 Token
+}
+
 func (PlatformModelPricing) TableName() string {
 	return "platform_model_pricing"
 }

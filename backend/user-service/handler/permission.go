@@ -122,3 +122,32 @@ func (h *PermissionHandler) GetRolePermissions(c *gin.Context) {
 	}
 	response.Success(c, permissions)
 }
+
+// GetMyPermissions 获取当前用户的权限码列表
+func (h *PermissionHandler) GetMyPermissions(c *gin.Context) {
+	tenantID, _ := middleware.GetTenantID(c)
+	role, _ := c.Get("role")
+
+	roleStr, _ := role.(string)
+	if roleStr == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": []string{}})
+		return
+	}
+
+	if roleStr == "super_admin" {
+		perms, _ := h.permService.GetAllPermissions()
+		codes := make([]string, len(perms))
+		for i, p := range perms { codes[i] = p.Code }
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": codes})
+		return
+	}
+
+	perms, err := h.permService.GetPermissionsByRole(tenantID, roleStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 5000, "message": err.Error()})
+		return
+	}
+	codes := make([]string, len(perms))
+	for i, p := range perms { codes[i] = p.Code }
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": codes})
+}

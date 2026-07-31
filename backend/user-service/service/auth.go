@@ -126,13 +126,21 @@ func (s *AuthService) Register(req *RegisterRequest) (*TokenResponse, *UserInfo,
 
 	tenantID := uuid.MustParse(middleware.DefaultTenantID)
 
+	// First registered user becomes super_admin, subsequent get member
+	var userCount int64
+	s.db.Model(&models.User{}).Count(&userCount)
+	role := "member"
+	if userCount == 0 {
+		role = "super_admin"
+	}
+
 	user := models.User{
 		TenantID:     tenantID,
 		Phone:        req.Phone,
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
 		Name:         req.Name,
-		Role:         "super_admin",
+		Role:         role,
 		Status:       "active",
 	}
 	if user.Name == "" {

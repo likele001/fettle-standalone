@@ -53,6 +53,7 @@ func NewRouter(db *gorm.DB, jwtSecret string, aiEngineAddr string, aiClient *grp
 		{
 			agents.GET("", agentHandler.ListAgents)
 			agents.POST("", agentHandler.CreateAgent)
+			agents.POST("/test", agentHandler.TestChat)
 			agents.GET("/:id", agentHandler.GetAgent)
 			agents.PUT("/:id", agentHandler.UpdateAgent)
 			agents.DELETE("/:id", agentHandler.DeleteAgent)

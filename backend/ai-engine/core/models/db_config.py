@@ -35,8 +35,8 @@ class DBModel:
     model_type: str
     max_input_tokens: int
     max_output_tokens: int
-    input_price_per_1k: float
-    output_price_per_1k: float
+    input_price_per1k: float
+    output_price_per1k: float
     capabilities: List[str]
     is_default: bool
 
@@ -158,7 +158,7 @@ class AIConfigDB:
             SELECT m.id, m.provider_id, p.code as provider_code,
                    m.model_code, m.model_name, m.model_type,
                    m.max_input_tokens, m.max_output_tokens,
-                   m.input_price_per_1k, m.output_price_per_1k,
+                   m.input_price_per1k, m.output_price_per1k,
                    m.capabilities, m.is_default
             FROM ai_models m
             JOIN ai_providers p ON m.provider_id = p.id
@@ -186,8 +186,8 @@ class AIConfigDB:
                     model_type=row['model_type'],
                     max_input_tokens=row['max_input_tokens'],
                     max_output_tokens=row['max_output_tokens'],
-                    input_price_per_1k=row['input_price_per_1k'],
-                    output_price_per_1k=row['output_price_per_1k'],
+                    input_price_per1k=row['input_price_per1k'],
+                    output_price_per1k=row['output_price_per1k'],
                     capabilities=row['capabilities'] or [],
                     is_default=row['is_default'],
                 )
@@ -201,7 +201,7 @@ class AIConfigDB:
             SELECT m.id, m.provider_id, p.code as provider_code,
                    m.model_code, m.model_name, m.model_type,
                    m.max_input_tokens, m.max_output_tokens,
-                   m.input_price_per_1k, m.output_price_per_1k,
+                   m.input_price_per1k, m.output_price_per1k,
                    m.capabilities, m.is_default
             FROM ai_models m
             JOIN ai_providers p ON m.provider_id = p.id
@@ -230,8 +230,8 @@ class AIConfigDB:
                     model_type=row['model_type'],
                     max_input_tokens=row['max_input_tokens'],
                     max_output_tokens=row['max_output_tokens'],
-                    input_price_per_1k=row['input_price_per_1k'],
-                    output_price_per_1k=row['output_price_per_1k'],
+                    input_price_per1k=row['input_price_per1k'],
+                    output_price_per1k=row['output_price_per1k'],
                     capabilities=row['capabilities'] or [],
                     is_default=row['is_default'],
                 )
@@ -246,7 +246,7 @@ class AIConfigDB:
             SELECT m.id, m.provider_id, p.code as provider_code,
                    m.model_code, m.model_name, m.model_type,
                    m.max_input_tokens, m.max_output_tokens,
-                   m.input_price_per_1k, m.output_price_per_1k,
+                   m.input_price_per1k, m.output_price_per1k,
                    m.capabilities, m.is_default
             FROM ai_models m
             JOIN ai_providers p ON m.provider_id = p.id
@@ -266,8 +266,8 @@ class AIConfigDB:
                     model_type=row['model_type'],
                     max_input_tokens=row['max_input_tokens'],
                     max_output_tokens=row['max_output_tokens'],
-                    input_price_per_1k=row['input_price_per_1k'],
-                    output_price_per_1k=row['output_price_per_1k'],
+                    input_price_per1k=row['input_price_per1k'],
+                    output_price_per1k=row['output_price_per1k'],
                     capabilities=row['capabilities'] or [],
                     is_default=row['is_default'],
                 )
@@ -306,7 +306,42 @@ class AIConfigDB:
                     status=row['status'],
                 )
         return None
-    
+
+    async def list_tenant_api_keys(self, tenant_id: str) -> list:
+        """List all active API keys for a tenant (sorted by provider_code)."""
+        await self.init_pool()
+
+        query = """
+            SELECT tk.id, tk.tenant_id, tk.provider_id, p.code as provider_code,
+                   tk.api_key_value, tk.api_key_encrypted, tk.custom_base_url, tk.custom_headers, tk.status
+            FROM tenant_api_keys tk
+            JOIN ai_providers p ON tk.provider_id = p.id
+            WHERE tk.tenant_id = $1 AND tk.status = 'active'
+            ORDER BY p.code ASC
+        """
+
+        keys = []
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, tenant_id)
+            for row in rows:
+                api_key_value = row['api_key_value']
+                if row['api_key_encrypted'] and api_key_value:
+                    try:
+                        api_key_value = aes_cipher.decrypt(api_key_value)
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt API key: {e}")
+                keys.append(TenantAPIKey(
+                    id=str(row['id']),
+                    tenant_id=str(row['tenant_id']),
+                    provider_id=str(row['provider_id']),
+                    provider_code=row['provider_code'],
+                    api_key_value=api_key_value,
+                    custom_base_url=row['custom_base_url'],
+                    custom_headers=row['custom_headers'] or {},
+                    status=row['status'],
+                ))
+        return keys
+
     async def get_tenant_ai_config(self, tenant_id: str) -> Optional[TenantAIConfig]:
         """获取租户 AI 配置"""
         await self.init_pool()

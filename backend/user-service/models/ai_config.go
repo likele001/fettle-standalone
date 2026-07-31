@@ -89,8 +89,9 @@ type TenantAPIKey struct {
 	TenantID        uuid.UUID  `gorm:"type:uuid;not null;index" json:"tenant_id"`
 	ProviderID      uuid.UUID  `gorm:"type:uuid;not null;index" json:"provider_id"`
 	Provider        *AIProvider `gorm:"foreignKey:ProviderID" json:"provider,omitempty"`
-	APIKeyName      string     `gorm:"size:100;not null" json:"api_key_name"`
-	APIKeyValue     string     `gorm:"type:text;not null" json:"api_key_value"` // 返回时手动清空
+	APIKeyName      string     `gorm:"size:100;not null" json:"key_name"`
+	APIKeyValue     string     `gorm:"type:text;not null" json:"api_key"` // 返回时手动清空
+	ProviderName    string     `gorm:"->;column:provider_name" json:"provider_name"`
 	APIKeyEncrypted bool       `gorm:"not null;default:false" json:"api_key_encrypted"`
 	MonthlyQuota    int        `gorm:"not null;default:0" json:"monthly_quota"`
 	MonthlyUsed     int        `gorm:"not null;default:0" json:"monthly_used"`

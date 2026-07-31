@@ -148,7 +148,9 @@ func NewRouter(db *gorm.DB, redisClient *cache.RedisClient, jwtSecret string) *g
 			team.POST("/accept-invite", teamHandler.AcceptInvitation)
 		}
 
-		perm := api.Group("/permissions")
+		api.GET("/my-permissions", permHandler.GetMyPermissions)
+
+	perm := api.Group("/permissions")
 		perm.Use(requirePerm("user:write"))
 		{
 			perm.GET("", permHandler.ListAll)

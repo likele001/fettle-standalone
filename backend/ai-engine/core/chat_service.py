@@ -5,12 +5,54 @@ from typing import List, Dict, Any, Optional, AsyncIterator
 from dataclasses import dataclass
 
 from core.models.model_router import model_router, TaskType
+from core.models.db_model_router import db_model_router
 from core.models.providers import ProviderFactory, ChatMessage
 from core.rag.knowledge_retriever import KnowledgeRetriever
 from core.rag.advanced_retrievers import RAGRetrieverFactory
 from core.workflow import Workflow, WorkflowInstance, workflow_engine
 
 logger = logging.getLogger(__name__)
+
+async def _select_provider_and_model(tenant_id: str, task_type, tenant_plan, model_id):
+    """优先用 db_model_router (租户配置) 选 model；失败时 fallback 到 model_router；
+    最终 fallback 扫描租户所有 api_key 找有 key 的厂商的默认 model。
+
+    Returns: (provider_code, model_name, max_tokens, temperature, source)
+             source = "db" | "yaml" | "tenant_key"
+    """
+    # 1. 优先 db_model_router（读 tenant_ai_configs + ai_models）
+    db_cfg = None
+    if tenant_id:
+        try:
+            db_cfg = await db_model_router.select_model(tenant_id=tenant_id, model_id=model_id)
+            if db_cfg and db_cfg.provider_code:
+                return db_cfg.provider_code, db_cfg.model_code, db_cfg.max_output_tokens or 2000, 0.7, "db"
+        except Exception as e:
+            logger.warning(f"db_model_router.select_model failed for tenant={tenant_id}: {e}")
+
+    # 2. Fallback: 扫租户所有 tenant_api_keys，找第一个有 key 的厂商，再取该厂商的默认 model
+    if tenant_id:
+        try:
+            from core.models.db_config import ai_config_db
+            providers = await ai_config_db.list_providers()
+            for prov in providers:
+                tk = await ai_config_db.get_tenant_api_key(tenant_id, prov.id)
+                if tk and tk.api_key_value:
+                    # 找该 provider_code 下的默认 chat model
+                    models = await ai_config_db.list_models(provider_id=prov.id, model_type="chat")
+                    default_m = next((m for m in models if m.is_default), None) or (models[0] if models else None)
+                    if default_m:
+                        logger.info(f"Using tenant_key fallback: provider={prov.code}, model={default_m.model_code}")
+                        return prov.code, default_m.model_code, default_m.max_output_tokens or 2000, 0.7, "tenant_key"
+        except Exception as e:
+            logger.warning(f"tenant_key fallback failed for tenant={tenant_id}: {e}")
+
+    # 3. 最后 fallback: model_router (yaml)
+    cfg = model_router.select_model(
+        task_type=task_type, tenant_plan=tenant_plan, model_id=model_id
+    )
+    return cfg.provider, cfg.model_name, cfg.max_tokens, cfg.temperature, "yaml"
+
 
 
 @dataclass
@@ -115,13 +157,17 @@ class ChatService:
 
     async def _generate_direct(self, request: ChatRequest, start_time: float) -> ChatResponse:
         """直接生成回复"""
-        model_config = model_router.select_model(
+        provider_code, model_name, max_tokens, temperature, _src = await _select_provider_and_model(
+            tenant_id=request.tenant_id,
             task_type=TaskType.KNOWLEDGE_QA if request.knowledge_base_id else TaskType.SIMPLE_CHAT,
             tenant_plan=request.context.get("tenant_plan") if request.context else None,
-            model_id=request.model if request.model else None
+            model_id=request.model if request.model else None,
         )
+        logger.info(f"chat_service: provider={provider_code}, model={model_name}, source={_src}")
 
-        provider = ProviderFactory.get_provider(model_config.provider)
+        provider = await ProviderFactory.get_provider_async(
+            provider_code, tenant_id=request.tenant_id
+        )
         if not provider:
             return ChatResponse(
                 reply="AI 服务暂时不可用，请稍后再试。",
@@ -134,9 +180,9 @@ class ChatService:
 
         response = await provider.chat(
             messages=messages,
-            model=model_config.model_name,
-            max_tokens=model_config.max_tokens,
-            temperature=model_config.temperature
+            model=model_name,
+            max_tokens=max_tokens,
+            temperature=temperature
         )
 
         latency_ms = (time.time() - start_time) * 1000
@@ -207,13 +253,17 @@ class ChatService:
 
     async def _stream_direct(self, request: ChatRequest):
         """直接流式生成"""
-        model_config = model_router.select_model(
+        provider_code, model_name, max_tokens, temperature, _src = await _select_provider_and_model(
+            tenant_id=request.tenant_id,
             task_type=TaskType.KNOWLEDGE_QA if request.knowledge_base_id else TaskType.SIMPLE_CHAT,
             tenant_plan=request.context.get("tenant_plan") if request.context else None,
-            model_id=request.model if request.model else None
+            model_id=request.model if request.model else None,
         )
+        logger.info(f"chat_service: provider={provider_code}, model={model_name}, source={_src}")
 
-        provider = ProviderFactory.get_provider(model_config.provider)
+        provider = await ProviderFactory.get_provider_async(
+            provider_code, tenant_id=request.tenant_id
+        )
         if not provider:
             yield {
                 "chunk": "AI 服务暂时不可用，请稍后再试。",
@@ -230,23 +280,23 @@ class ChatService:
 
         async for chunk in provider.stream_chat(
             messages=messages,
-            model=model_config.model_name,
-            max_tokens=model_config.max_tokens,
-            temperature=model_config.temperature
+            model=model_name,
+            max_tokens=max_tokens,
+            temperature=temperature
         ):
             tokens_used += 1
             full_content.append(chunk)
             yield {
                 "chunk": chunk,
                 "is_final": False,
-                "model_used": model_config.model_name,
+                "model_used": model_name,
                 "tokens_used": tokens_used
             }
 
         yield {
             "chunk": "",
             "is_final": True,
-            "model_used": model_config.model_name,
+            "model_used": model_name,
             "tokens_used": tokens_used,
             "knowledge_chunks": knowledge_chunks
         }

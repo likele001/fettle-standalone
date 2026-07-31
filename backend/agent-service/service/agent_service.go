@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"ai-platform/agent-service/grpc_client"
 	"ai-platform/agent-service/models"
 	"ai-platform/agent-service/repository"
@@ -191,4 +192,19 @@ func (s *AgentService) ListAllAgents(page, pageSize int) ([]models.Agent, int64,
 // GetAgentStats returns agent statistics (admin)
 func (s *AgentService) GetAgentStats() (map[string]int64, error) {
 	return s.repo.GetAgentStats()
+}
+
+// TestChat 测试智能体对话（通过 gRPC 调用 AI Engine）
+func (s *AgentService) TestChat(ctx context.Context, tenantID, userID, agentID, message string) (string, error) {
+	agent, err := s.repo.GetByID(tenantID, agentID)
+	if err != nil {
+		return "", fmt.Errorf("agent not found: %w", err)
+	}
+
+	reply, err := s.aiClient.GenerateReply(ctx, tenantID, userID, message, agent.ID.String(), "", nil)
+	if err != nil {
+		return "", fmt.Errorf("ai engine call failed: %w", err)
+	}
+
+	return reply, nil
 }
