@@ -230,10 +230,17 @@ func (r *PlatformAIRepository) GetMonthlyUsageSummary(tenantID uuid.UUID, months
 }
 
 // GetPlatformPricing 获取平台模型定价列表
-func (r *PlatformAIRepository) GetPlatformPricing() ([]models.PlatformModelPricing, error) {
-	var pricing []models.PlatformModelPricing
-	err := r.db.Where("is_enabled = ?", true).Find(&pricing).Error
-	return pricing, err
+// JOIN ai_models 取得真实 model_name 与价格（platform_model_pricing 的价格为 0 且 model_name 留空），
+// 将 ai_models 中的 per-1k 价格 × 1000 转换为每百万 Token，匹配前端展示约定。
+func (r *PlatformAIRepository) GetPlatformPricing() ([]models.ModelPricingView, error) {
+	var rows []models.ModelPricingView
+	err := r.db.Table("platform_model_pricing p").
+		Select("p.id as id, COALESCE(m.model_name, '') as model_name, COALESCE(m.input_price_per1k, 0) * 1000 as input_price, COALESCE(m.output_price_per1k, 0) * 1000 as output_price").
+		Joins("LEFT JOIN ai_models m ON m.id = p.model_id").
+		Where("p.is_enabled = ?", true).
+		Order("m.provider_id, m.model_name").
+		Scan(&rows).Error
+	return rows, err
 }
 
 // GetModelPricing 获取单个模型定价

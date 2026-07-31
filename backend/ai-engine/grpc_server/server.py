@@ -7,10 +7,31 @@ from typing import Dict, Any
 import grpc
 from proto import ai_engine_pb2, ai_engine_pb2_grpc
 from core.models.model_router import model_router, TaskType
+from core.models.db_model_router import db_model_router
 from core.models.providers import ProviderFactory, ChatMessage
 from core.rag.knowledge_retriever import KnowledgeRetriever
 
 logger = logging.getLogger(__name__)
+
+async def _select_provider_and_model(tenant_id: str, task_type, tenant_plan, model_id):
+    """优先用 db_model_router (租户配置) 选 model；失败时 fallback 到 model_router。
+
+    Returns: (provider_code, model_name, source)  source = "db" | "yaml"
+    """
+    # 1. 优先 db_model_router（读 tenant_ai_configs + ai_models）
+    if tenant_id:
+        try:
+            cfg = await db_model_router.select_model(tenant_id=tenant_id, model_id=model_id)
+            return cfg.provider_code, cfg.model_code, "db"
+        except Exception as e:
+            logger.warning(f"db_model_router.select_model failed for tenant={tenant_id}: {e}")
+
+    # 2. Fallback model_router (yaml)
+    cfg = model_router.select_model(
+        task_type=task_type, tenant_plan=tenant_plan, model_id=model_id
+    )
+    return cfg.provider, cfg.model_name, "yaml"
+
 
 
 class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
@@ -35,7 +56,9 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             )
             
             # 获取提供商
-            provider = ProviderFactory.get_provider(model_config.provider)
+            provider = await ProviderFactory.get_provider_async(
+                model_config.provider, tenant_id=request.tenant_id
+            )
             if not provider:
                 return ai_engine_pb2.IntentResponse(
                     intent="unknown",
@@ -97,7 +120,9 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
                 tenant_plan=request.context.get('tenant_plan')
             )
             
-            provider = ProviderFactory.get_provider(model_config.provider)
+            provider = await ProviderFactory.get_provider_async(
+                model_config.provider, tenant_id=request.tenant_id
+            )
             if not provider:
                 return ai_engine_pb2.PlanResponse(
                     steps=[],
@@ -161,13 +186,17 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             logger.info(f"Reply generation request: tenant={request.tenant_id}, input={request.input[:50]}")
             
             # 选择模型
-            model_config = model_router.select_model(
+            provider_code, model_name, _src = await _select_provider_and_model(
+                tenant_id=request.tenant_id,
                 task_type=TaskType.KNOWLEDGE_QA,
                 tenant_plan=request.context.get('tenant_plan'),
-                model_id=request.model if request.model else None
+                model_id=request.model if request.model else None,
             )
-            
-            provider = ProviderFactory.get_provider(model_config.provider)
+            logger.info(f"grpc GenerateReply: provider={provider_code}, model={model_name}, source={_src}")
+
+            provider = await ProviderFactory.get_provider_async(
+                provider_code, tenant_id=request.tenant_id
+            )
             if not provider:
                 return ai_engine_pb2.ReplyResponse(
                     reply="服务暂时不可用",
@@ -189,9 +218,9 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             # 调用模型
             response = await provider.chat(
                 messages=messages,
-                model=model_config.model_name,
-                max_tokens=model_config.max_tokens,
-                temperature=model_config.temperature
+                model=model_name,
+                max_tokens=1000,
+                temperature=0.7
             )
             
             latency_ms = (time.time() - start_time) * 1000
@@ -221,13 +250,17 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
         try:
             logger.info(f"Stream reply request: tenant={request.tenant_id}")
             
-            model_config = model_router.select_model(
+            provider_code, model_name, _src = await _select_provider_and_model(
+                tenant_id=request.tenant_id,
                 task_type=TaskType.KNOWLEDGE_QA,
                 tenant_plan=request.context.get('tenant_plan'),
-                model_id=request.model if request.model else None
+                model_id=request.model if request.model else None,
             )
-            
-            provider = ProviderFactory.get_provider(model_config.provider)
+            logger.info(f"grpc GenerateReply: provider={provider_code}, model={model_name}, source={_src}")
+
+            provider = await ProviderFactory.get_provider_async(
+                provider_code, tenant_id=request.tenant_id
+            )
             if not provider:
                 yield ai_engine_pb2.StreamResponse(
                     chunk="服务暂时不可用",
@@ -247,15 +280,15 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             tokens_used = 0
             async for chunk in provider.stream_chat(
                 messages=messages,
-                model=model_config.model_name,
-                max_tokens=model_config.max_tokens,
-                temperature=model_config.temperature
+                model=model_name,
+                max_tokens=1000,
+                temperature=0.7
             ):
                 tokens_used += 1  # 简化计算
                 yield ai_engine_pb2.StreamResponse(
                     chunk=chunk,
                     is_final=False,
-                    model_used=model_config.model_name,
+                    model_used=model_name.model_name,
                     tokens_used=tokens_used
                 )
             
@@ -263,7 +296,7 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             yield ai_engine_pb2.StreamResponse(
                 chunk="",
                 is_final=True,
-                model_used=model_config.model_name,
+                model_used=model_name.model_name,
                 tokens_used=tokens_used
             )
         
@@ -289,7 +322,9 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
                 request.model if request.model else None
             )
             
-            provider = ProviderFactory.get_provider(emb_config.provider)
+            provider = await ProviderFactory.get_provider_async(
+                emb_config.provider, tenant_id=request.tenant_id
+            )
             if not provider:
                 return ai_engine_pb2.EmbeddingResponse(
                     embeddings=[],

@@ -152,7 +152,23 @@ func (r *TenantAIConfigRepository) Update(config *models.TenantAIConfig) error {
 }
 
 func (r *TenantAIConfigRepository) Upsert(config *models.TenantAIConfig) error {
-	return r.db.Save(config).Error // Save 会自动判断是 create 还是 update
+	// 以 tenant_id 为唯一键做 upsert：PUT 请求体通常不含主键 id。
+	// 若直接 Save，主键为空会被 GORM 当作新记录执行 INSERT，触发
+	// uni_tenant_ai_configs_tenant_id 唯一约束冲突（duplicate key）。
+	var existing models.TenantAIConfig
+	err := r.db.First(&existing, "tenant_id = ?", config.TenantID).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(config).Error
+	}
+	if err != nil {
+		return err
+	}
+	// 更新时保留系统字段，避免 Save 把 CreatedAt / 用量计数清零
+	config.ID = existing.ID
+	config.CreatedAt = existing.CreatedAt
+	config.MonthlyTokenUsed = existing.MonthlyTokenUsed
+	config.TokenLimitResetAt = existing.TokenLimitResetAt
+	return r.db.Save(config).Error
 }
 
 // TenantAPIKeyRepository 租户 API Key 仓储
@@ -166,7 +182,12 @@ func NewTenantAPIKeyRepository(db *gorm.DB) *TenantAPIKeyRepository {
 
 func (r *TenantAPIKeyRepository) List(tenantID uuid.UUID) ([]models.TenantAPIKey, error) {
 	var keys []models.TenantAPIKey
-	err := r.db.Preload("Provider").Where("tenant_id = ?", tenantID).Order("created_at DESC").Find(&keys).Error
+	err := r.db.Table("tenant_api_keys k").
+		Select("k.*, p.name as provider_name").
+		Joins("LEFT JOIN ai_providers p ON p.id = k.provider_id").
+		Where("k.tenant_id = ?", tenantID).
+		Order("k.created_at DESC").
+		Scan(&keys).Error
 	return keys, err
 }
 

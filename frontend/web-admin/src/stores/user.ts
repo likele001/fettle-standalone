@@ -33,9 +33,23 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('user_info')
   }
 
+  const permissions = ref<string[]>([])
+  const hasPermission = (code: string) => permissions.value.includes(code)
+
+  async function fetchPermissions() {
+    try {
+      const { default: request } = await import('@/api/request')
+      const res = await request.get('/my-permissions')
+      permissions.value = res.data || res || []
+    } catch { permissions.value = [] }
+  }
+
   return {
     accessToken,
     refreshToken,
+    permissions,
+    hasPermission,
+    fetchPermissions,
     userInfo,
     isLoggedIn,
     isTokenExpired: isTokenExpiredComputed,

@@ -232,10 +232,7 @@
         </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="inviteForm.role" placeholder="选择角色">
-            <el-option label="管理员" value="admin" />
-            <el-option label="运营" value="operator" />
-            <el-option label="客服" value="customer" />
-            <el-option label="访客" value="viewer" />
+            <el-option v-for="r in roleOptions" :key="r.code" :label="r.name" :value="r.code" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -296,6 +293,14 @@ const inviteForm = ref({
   email: '',
   role: 'operator'
 })
+
+const roleOptions = ref<Array<{ code: string; name: string }>>([])
+const fetchRoles = async () => {
+  try {
+    const res = await request.get('/roles')
+    roleOptions.value = res.data || res || []
+  } catch (e) { /* fallback to empty */ }
+}
 
 const profileForm = ref({
   avatar: '',
@@ -433,7 +438,8 @@ const formatDate = (date: string) => {
 }
 
 const showInviteDialog = () => {
-  inviteForm.value = { email: '', role: 'operator' }
+  fetchRoles()
+  inviteForm.value = { email: '', role: roleOptions.value[0]?.code || 'member' }
   inviteVisible.value = true
 }
 

@@ -27,6 +27,8 @@ class ChatRequest:
     model: str = ""
     knowledge_base_id: str = ""
     context: Dict[str, str] = None
+    image_paths: List[str] = None
+    audio_paths: List[str] = None
 
 
 @dataclass
@@ -303,9 +305,42 @@ class DBChatService:
                 if role and content:
                     messages.append(ChatMessage(role=role, content=content))
 
-        messages.append(ChatMessage(role="user", content=request.input))
+        user_content = request.input
+        media_text = await self._extract_media_text(request)
+        if media_text:
+            user_content = request.input + "\n\n" + media_text
+        messages.append(ChatMessage(role="user", content=user_content))
 
         return messages, knowledge_chunks
+
+    async def _extract_media_text(self, request) -> str:
+        """提取图片(OCR)/语音(转写)文本，注入用户消息（依赖缺失时优雅跳过）。"""
+        parts = []
+        try:
+            if getattr(request, "image_paths", None):
+                from core.multimodal.image_processor import image_processor
+                for p in request.image_paths:
+                    with open(p, "rb") as f:
+                        data = f.read()
+                    r = await image_processor.process_image(data, extract_text=True)
+                    t = r.get("extracted_text", "")
+                    if t.strip():
+                        parts.append(f"[图片内容 {p}]:\n{t}")
+        except Exception as e:
+            logger.error(f"Image OCR failed: {e}")
+        try:
+            if getattr(request, "audio_paths", None):
+                from core.multimodal.audio_processor import audio_processor
+                for p in request.audio_paths:
+                    with open(p, "rb") as f:
+                        data = f.read()
+                    r = await audio_processor.process_audio(data, filename=p, transcribe=True)
+                    t = r.get("transcription", "")
+                    if t.strip():
+                        parts.append(f"[语音转写 {p}]:\n{t}")
+        except Exception as e:
+            logger.error(f"Audio transcribe failed: {e}")
+        return "\n\n".join(parts)
 
     async def _retrieve_knowledge(self, knowledge_base_id: str, query: str, tenant_id: str):
         """检索知识库"""

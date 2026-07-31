@@ -8,92 +8,26 @@
     text-color="#fff"
     active-text-color="#409EFF"
   >
-    <el-menu-item index="/">
-      <el-icon><HomeFilled /></el-icon>
-      <span>控制台</span>
-    </el-menu-item>
+    <template v-for="item in filteredMenu" :key="item.path || item.group">
+      <el-menu-item v-if="item.path" :index="item.path">
+        <el-icon><component :is="item.icon" /></el-icon>
+        <span>{{ item.title }}</span>
+      </el-menu-item>
 
-    <el-sub-menu index="agents">
-      <template #title>
-        <el-icon><UserFilled /></el-icon>
-        <span>智能体管理</span>
-      </template>
-      <el-menu-item index="/agents">智能体列表</el-menu-item>
-      <el-menu-item index="/agents/create">创建智能体</el-menu-item>
-    </el-sub-menu>
-
-    <el-sub-menu index="conversations">
-      <template #title>
-        <el-icon><ChatDotRound /></el-icon>
-        <span>会话管理</span>
-      </template>
-      <el-menu-item index="/conversations">会话列表</el-menu-item>
-      <el-menu-item index="/conversations/monitor">实时监控</el-menu-item>
-    </el-sub-menu>
-
-    <el-sub-menu index="knowledge">
-      <template #title>
-        <el-icon><FolderOpened /></el-icon>
-        <span>知识库</span>
-      </template>
-      <el-menu-item index="/knowledge">知识库列表</el-menu-item>
-      <el-menu-item index="/knowledge/upload">上传文档</el-menu-item>
-    </el-sub-menu>
-
-    <el-sub-menu index="skills">
-      <template #title>
-        <el-icon><MagicStick /></el-icon>
-        <span>技能市场</span>
-      </template>
-      <el-menu-item index="/skills">技能列表</el-menu-item>
-      <el-menu-item index="/skills/installed">已安装技能</el-menu-item>
-    </el-sub-menu>
-
-    <el-sub-menu index="channels">
-      <template #title>
-        <el-icon><Connection /></el-icon>
-        <span>渠道接入</span>
-      </template>
-      <el-menu-item index="/channels">渠道列表</el-menu-item>
-      <el-menu-item index="/channels/wechat">微信配置</el-menu-item>
-    </el-sub-menu>
-
-    <el-sub-menu index="analytics">
-      <template #title>
-        <el-icon><DataAnalysis /></el-icon>
-        <span>数据分析</span>
-      </template>
-      <el-menu-item index="/analytics/overview">数据概览</el-menu-item>
-      <el-menu-item index="/analytics/conversations">会话分析</el-menu-item>
-    </el-sub-menu>
-
-    <el-menu-item index="/ai-config">
-      <el-icon><Cpu /></el-icon>
-      <span>AI 模型配置</span>
-    </el-menu-item>
-
-    <el-menu-item index="/ai-billing">
-      <el-icon><Coin /></el-icon>
-      <span>AI 计费</span>
-    </el-menu-item>
-
-    <el-sub-menu index="workflows">
-      <template #title>
-        <el-icon><Operation /></el-icon>
-        <span>工作流管理</span>
-      </template>
-      <el-menu-item index="/workflows">工作流列表</el-menu-item>
-      <el-menu-item index="/workflows/create">创建工作流</el-menu-item>
-    </el-sub-menu>
-
-    <el-sub-menu index="settings">
-      <template #title>
-        <el-icon><Setting /></el-icon>
-        <span>系统设置</span>
-      </template>
-      <el-menu-item index="/settings/team">团队管理</el-menu-item>
-      <el-menu-item index="/settings/profile">个人信息</el-menu-item>
-    </el-sub-menu>
+      <el-sub-menu v-else :index="item.group">
+        <template #title>
+          <el-icon><component :is="item.icon" /></el-icon>
+          <span>{{ item.group }}</span>
+        </template>
+        <el-menu-item
+          v-for="child in item.children"
+          :key="child.path"
+          :index="child.path"
+        >
+          {{ child.title }}
+        </el-menu-item>
+      </el-sub-menu>
+    </template>
   </el-menu>
 </template>
 
@@ -104,6 +38,7 @@ import {
   HomeFilled, Cpu, Coin, ChatDotRound, FolderOpened, MagicStick,
   Connection, DataAnalysis, Setting, Operation, UserFilled
 } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user'
 
 const props = withDefaults(defineProps<{
   collapsed?: boolean
@@ -115,6 +50,73 @@ const props = withDefaults(defineProps<{
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)
+const userStore = useUserStore()
+
+interface MenuChild { path: string; title: string; perm: string }
+interface MenuItem {
+  path?: string
+  title?: string
+  group?: string
+  icon: any
+  children?: MenuChild[]
+  perm: string
+}
+
+const allMenu: MenuItem[] = [
+  { path: '/', title: '控制台', icon: HomeFilled, perm: '' },
+  { group: '智能体管理', icon: UserFilled, perm: 'agents.read', children: [
+    { path: '/agents', title: '智能体列表', perm: 'agents.read' },
+    { path: '/agents/create', title: '创建智能体', perm: 'agents.create' },
+  ]},
+  { group: '会话管理', icon: ChatDotRound, perm: 'conversation.read', children: [
+    { path: '/conversations', title: '会话列表', perm: 'conversation.read' },
+    { path: '/conversations/monitor', title: '实时监控', perm: 'conversation.manage' },
+  ]},
+  { group: '知识库', icon: FolderOpened, perm: 'knowledge.read', children: [
+    { path: '/knowledge', title: '知识库列表', perm: 'knowledge.read' },
+    { path: '/knowledge/upload', title: '上传文档', perm: 'knowledge.create' },
+  ]},
+  { group: '技能市场', icon: MagicStick, perm: 'skills.read', children: [
+    { path: '/skills', title: '技能列表', perm: 'skills.read' },
+    { path: '/skills/installed', title: '已安装技能', perm: 'skills.manage' },
+  ]},
+  { group: '渠道接入', icon: Connection, perm: 'team.manage', children: [
+    { path: '/channels', title: '渠道列表', perm: 'team.manage' },
+    { path: '/channels/wechat', title: '微信配置', perm: 'team.manage' },
+  ]},
+  { group: '数据分析', icon: DataAnalysis, perm: 'analytics.read', children: [
+    { path: '/analytics/overview', title: '数据概览', perm: 'analytics.read' },
+    { path: '/analytics/conversations', title: '会话分析', perm: 'analytics.read' },
+  ]},
+  { group: '工作流管理', icon: Operation, perm: 'workflow.read', children: [
+    { path: '/workflows', title: '工作流列表', perm: 'workflow.read' },
+    { path: '/workflows/create', title: '创建工作流', perm: 'workflow.create' },
+  ]},
+  { path: '/ai-config', title: 'AI 模型配置', icon: Cpu, perm: 'settings.manage' },
+  { path: '/ai-billing', title: 'AI 计费', icon: Coin, perm: 'billing.read' },
+  { group: '系统设置', icon: Setting, perm: 'settings.read', children: [
+    { path: '/settings/team', title: '团队管理', perm: 'team.manage' },
+    { path: '/settings/roles', title: '角色管理', perm: 'role.manage' },
+    { path: '/settings/profile', title: '个人信息', perm: 'team.read' },
+    { path: '/settings/billing', title: '套餐与账单', perm: 'billing.read' },
+    { path: '/settings/payment', title: '支付配置', perm: 'billing.manage' },
+  ]},
+]
+
+function canAccess(perm: string) {
+  return !perm || userStore.hasPermission?.(perm)
+}
+
+const filteredMenu = computed(() => {
+  return allMenu.filter(item => {
+    if (item.path) return canAccess(item.perm)
+    // Group: show only if user can see at least one child
+    const visible = (item.children || []).filter(c => canAccess(c.perm))
+    if (visible.length === 0) return false
+    item.children = visible
+    return true
+  })
+})
 </script>
 
 <style scoped lang="scss">

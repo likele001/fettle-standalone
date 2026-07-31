@@ -32,6 +32,8 @@ class GenerateRequest(BaseModel):
     model: str = ""
     knowledge_base_id: str = ""
     context: Dict[str, str] = Field(default_factory=dict)
+    image_paths: List[str] = Field(default_factory=list)
+    audio_paths: List[str] = Field(default_factory=list)
 
 
 class GenerateResponse(BaseModel):
@@ -61,7 +63,9 @@ async def generate_chat(request: GenerateRequest):
         system_prompt=request.system_prompt,
         model=request.model,
         knowledge_base_id=request.knowledge_base_id,
-        context=request.context
+        context=request.context,
+        image_paths=request.image_paths,
+        audio_paths=request.audio_paths
     )
 
     result = await db_chat_service.generate_reply(chat_req)
@@ -94,7 +98,9 @@ async def stream_chat(request: GenerateRequest):
         system_prompt=request.system_prompt,
         model=request.model,
         knowledge_base_id=request.knowledge_base_id,
-        context=request.context
+        context=request.context,
+        image_paths=request.image_paths,
+        audio_paths=request.audio_paths
     )
 
     async def event_generator():

@@ -76,7 +76,7 @@ async def check_nats() -> str:
     """检查 NATS 连接"""
     try:
         import nats
-        nc = await nats.connect(settings.nats_url, timeout=2)
+        nc = await asyncio.wait_for(nats.connect(settings.nats_url), timeout=2)
         await nc.close()
         return "ok"
     except Exception as e:

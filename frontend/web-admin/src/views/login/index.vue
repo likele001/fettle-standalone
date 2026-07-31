@@ -131,7 +131,7 @@ async function handleSubmit() {
         captcha_code: form.captcha_code
       })
       userStore.setTokens(res.tokens)
-      userStore.setUser(res.user)
+      userStore.setUser(res.user); await userStore.fetchPermissions()
       ElMessage.success('登录成功')
       router.replace({ name: 'Dashboard' })
     } catch (e: any) {

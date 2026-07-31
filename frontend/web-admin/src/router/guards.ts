@@ -4,7 +4,7 @@ import { getToken } from '@/utils/token'
 import { ElMessage } from 'element-plus'
 
 export function setupRouterGuards(router: Router) {
-  router.beforeEach((to, from, next) => {
+  router.beforeEach(async (to, from, next) => {
     const userStore = useUserStore()
     
     if (to.meta.public) {
@@ -17,6 +17,18 @@ export function setupRouterGuards(router: Router) {
       if (!hasToken) {
         ElMessage.warning('请先登录')
         next({ path: '/login', query: { redirect: to.fullPath } })
+        return
+      }
+
+      // Permission check: if user has no permissions cached yet, fetch them first
+      if (userStore.permissions.length === 0) {
+        await userStore.fetchPermissions()
+      }
+
+      const requiredPerm = to.meta.permission as string
+      if (requiredPerm && !userStore.hasPermission?.(requiredPerm)) {
+        ElMessage.warning('没有访问权限')
+        next({ path: '/' })
         return
       }
     }
