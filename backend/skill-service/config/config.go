@@ -19,7 +19,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	port := sharedconfig.GetEnvInt("APP_PORT", 20005)
+	port := sharedconfig.GetEnvInt("APP_PORT", 9500)
 	dbPort := sharedconfig.GetEnvInt("DB_PORT", 5432)
 
 	return &Config{

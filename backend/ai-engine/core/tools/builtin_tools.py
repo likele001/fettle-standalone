@@ -571,6 +571,17 @@ def register_builtin_tools():
         EmailSendTool(),
         ScheduleTool(),
     ]
+    # 多模态工具：依赖 PIL/pytesseract/whisper，缺失时跳过，不影响其它工具启动
+    try:
+        from core.multimodal import ImageToTextTool, AudioTranscribeTool
+        for _t in (ImageToTextTool(), AudioTranscribeTool()):
+            try:
+                tool_registry.register_tool_class(type(_t))
+                logger.info(f"Registered builtin tool: {_t.name}")
+            except Exception as e:
+                logger.warning(f"多模态工具 {_t.name} 注册失败: {e}")
+    except Exception as e:
+        logger.warning(f"多模态工具不可用（缺少依赖，如 Pillow）: {e}")
     for tool in tools:
         tool_registry.register_tool_class(type(tool))
         logger.info(f"Registered builtin tool: {tool.name}")

@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewRouter(db *gorm.DB, jwtSecret string, aiEngineAddr string, aiClient *grpc_client.AIEngineClient, minioClient *storage.MinioClient) *gin.Engine {
+func NewRouter(db *gorm.DB, jwtSecret string, aiEngineAddr string, aiClient *grpc_client.AIEngineClient, minioClient *storage.MinioClient, workflowClient *service.WorkflowHTTPClient) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.TraceMiddleware())
@@ -34,7 +34,7 @@ func NewRouter(db *gorm.DB, jwtSecret string, aiEngineAddr string, aiClient *grp
 	agentRepo := repository.NewAgentRepository(db)
 	kbRepo := repository.NewKnowledgeBaseRepository(db)
 	bundleRepo := repository.NewBundleRepository(db)
-	agentService := service.NewAgentService(agentRepo, aiClient)
+	agentService := service.NewAgentService(agentRepo, aiClient, workflowClient)
 	kbService := service.NewKnowledgeService(kbRepo, agentRepo, aiClient)
 	bundleService := service.NewBundleService(bundleRepo)
 
@@ -83,6 +83,13 @@ func NewRouter(db *gorm.DB, jwtSecret string, aiEngineAddr string, aiClient *grp
 	{
 		admin.GET("/agents", adminHandler.ListAllAgents)
 		admin.GET("/agents/stats", adminHandler.GetAgentStats)
+	}
+
+	// 内部服务端点（ai-engine 工作流 AGENT 节点直连，不经 gateway JWT）
+	internal := r.Group("/internal")
+	internal.Use(middleware.InternalAuth())
+	{
+		internal.POST("/agents/test", agentHandler.InternalTestChat)
 	}
 
 	return r

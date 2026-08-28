@@ -47,8 +47,9 @@ type AdminUserInfo struct {
 
 // AdminClaims JWT声明
 type AdminClaims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID   string `json:"user_id"`
+	TenantID string `json:"tenant_id"`
+	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -146,8 +147,9 @@ func (s *AdminAuthService) generateAdminTokens(userID, role string) (*TokenRespo
 	refreshExpire := time.Now().Add(7 * 24 * time.Hour)
 
 	accessClaims := AdminClaims{
-		UserID: userID,
-		Role:   role,
+		UserID:   userID,
+		TenantID: "00000000-0000-0000-0000-000000000001",
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(accessExpire),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -155,8 +157,9 @@ func (s *AdminAuthService) generateAdminTokens(userID, role string) (*TokenRespo
 		},
 	}
 	refreshClaims := AdminClaims{
-		UserID: userID,
-		Role:   role,
+		UserID:   userID,
+		TenantID: "00000000-0000-0000-0000-000000000001",
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(refreshExpire),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

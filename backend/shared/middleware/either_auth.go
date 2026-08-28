@@ -37,7 +37,7 @@ func EitherAuthMiddleware(secret string) gin.HandlerFunc {
 
 		if err == nil && token.Valid {
 			c.Set("user_id", claims.UserID)
-			c.Set("tenant_id", DefaultTenantID)
+			c.Set("tenant_id", claims.TenantID)
 			c.Set("role", claims.Role)
 			c.Next()
 			return
@@ -51,7 +51,7 @@ func EitherAuthMiddleware(secret string) gin.HandlerFunc {
 		if err == nil && token.Valid {
 			c.Set("user_id", adminClaims.UserID)
 			c.Set("role", adminClaims.Role)
-			c.Set("tenant_id", DefaultTenantID)
+			c.Set("tenant_id", "00000000-0000-0000-0000-000000000001")
 			c.Next()
 			return
 		}

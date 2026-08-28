@@ -11,9 +11,9 @@
                 <circle cx="16" cy="16" r="3" fill="#3b82f6"/>
               </svg>
             </div>
-            <span class="logo-text">AI 智能体平台</span>
+            <span class="logo-text">辰科 fettle</span>
           </div>
-          <p class="footer-desc">企业级智能对话解决方案，多租户、多模型、多渠道</p>
+          <p class="footer-desc">企业级 AI 智能体平台 · SaaS 云服务 &amp; 私有部署双版本</p>
         </div>
 
         <div class="footer-links">
@@ -31,27 +31,41 @@
             <ul>
               <li><router-link to="/docs/deploy">部署教程</router-link></li>
               <li><router-link to="/docs/guide">使用指南</router-link></li>
-              <li><a href="#">API 文档</a></li>
             </ul>
           </div>
 
           <div class="link-group">
             <h4>支持</h4>
             <ul>
-              <li><a href="#">帮助中心</a></li>
-              <li><a href="#">联系我们</a></li>
-              <li><a href="#">问题反馈</a></li>
+              <li><a :href="urls.register" target="_blank" rel="noopener">免费试用</a></li>
+              <li><a :href="urls.login" target="_blank" rel="noopener">登录后台</a></li>
+              <li v-if="contact.wechat">微信：{{ contact.wechat }}</li>
+              <li v-if="contact.phone">电话：{{ contact.phone }}</li>
+              <li><a :href="`mailto:${contact.email}`">{{ contact.email }}</a></li>
             </ul>
           </div>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <p>&copy; 2026 AI 智能体平台. 保留所有权利.</p>
+        <p>&copy; {{ new Date().getFullYear() }} 辰科科技 fettle. 保留所有权利.</p>
       </div>
     </div>
   </footer>
 </template>
+
+<script setup lang="ts">
+import { onMounted } from 'vue'
+import { SITE_URLS } from '@/config/site'
+import { useSiteConfig } from '@/composables/useSiteConfig'
+
+const urls = SITE_URLS
+const { contact, fetchContact } = useSiteConfig()
+
+onMounted(() => {
+  fetchContact()
+})
+</script>
 
 <style lang="scss" scoped>
 .footer {

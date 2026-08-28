@@ -27,7 +27,7 @@ func main() {
 		panic(err)
 	}
 
-	port := config.GetEnvInt("APP_PORT", 20005)
+	port := config.GetEnvInt("SKILL_SERVICE_PORT", 9500)
 	dbHost := config.GetEnv("DB_HOST", "localhost")
 	dbPort := config.GetEnvInt("DB_PORT", 5432)
 	dbUser := config.GetEnv("DB_USER", "ai_platform")

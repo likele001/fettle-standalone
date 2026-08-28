@@ -138,6 +138,7 @@ func (h *AgentHandler) DeleteAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success"})
 }
 
+
 // TestChat 测试智能体对话
 func (h *AgentHandler) TestChat(c *gin.Context) {
 	tenantID, ok := middleware.GetTenantID(c)
@@ -166,4 +167,29 @@ func (h *AgentHandler) TestChat(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"reply": reply})
+}
+
+
+// InternalTestChat 内部服务调用智能体测试对话（无 JWT，body 传 tenant_id/user_id，供 ai-engine 工作流 AGENT 节点）
+func (h *AgentHandler) InternalTestChat(c *gin.Context) {
+	var req struct {
+		TenantID string `json:"tenant_id" binding:"required"`
+		UserID   string `json:"user_id"`
+		AgentID  string `json:"agent_id" binding:"required"`
+		Message  string `json:"message" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": err.Error()})
+		return
+	}
+	userID := req.UserID
+	if userID == "" {
+		userID = "system"
+	}
+	reply, err := h.agentService.TestChat(c.Request.Context(), req.TenantID, userID, req.AgentID, req.Message)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 5000, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": gin.H{"reply": reply}})
 }

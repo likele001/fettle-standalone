@@ -26,6 +26,7 @@ class OpenAIProvider(BaseProvider):
         model: str,
         max_tokens: int = 2000,
         temperature: float = 0.7,
+        usage_holder: dict = None,
         **kwargs
     ) -> ChatResponse:
         start_time = time.time()
@@ -60,6 +61,8 @@ class OpenAIProvider(BaseProvider):
         temperature: float = 0.7,
         **kwargs
     ) -> AsyncIterator[str]:
+        # usage_holder 是内部记账参数，不能传给 OpenAI SDK
+        usage_holder = kwargs.pop('usage_holder', None)
         openai_messages = [
             {"role": msg.role, "content": msg.content}
             for msg in messages
@@ -71,12 +74,31 @@ class OpenAIProvider(BaseProvider):
             max_tokens=max_tokens,
             temperature=temperature,
             stream=True,
+            stream_options={"include_usage": True},
             **kwargs
         )
 
+        input_tokens = 0
+
+        output_tokens = 0
+
         async for chunk in stream:
+
+            if getattr(chunk, "usage", None):
+
+                input_tokens = chunk.usage.prompt_tokens or 0
+
+                output_tokens = chunk.usage.completion_tokens or 0
+
             if chunk.choices and chunk.choices[0].delta.content:
+
                 yield chunk.choices[0].delta.content
+
+        if usage_holder is not None:
+
+            usage_holder["input"] = input_tokens
+
+            usage_holder["output"] = output_tokens
 
     async def embed(
         self,

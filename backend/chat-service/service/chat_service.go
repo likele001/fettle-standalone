@@ -23,11 +23,12 @@ var messageQuotaByPlan = map[string]int64{
 }
 
 type ChatService struct {
-	convRepo      *repository.ConversationRepository
-	msgRepo       *repository.MessageRepository
-	channelRepo   *repository.ChannelRepository
-	aiClient      *aiengine.HTTPClient
-	billingClient *AIBillingClient
+	convRepo       *repository.ConversationRepository
+	msgRepo        *repository.MessageRepository
+	channelRepo    *repository.ChannelRepository
+	aiClient       *aiengine.HTTPClient
+	workflowClient *aiengine.WorkflowClient
+	billingClient  *AIBillingClient
 }
 
 func NewChatService(
@@ -35,14 +36,16 @@ func NewChatService(
 	msgRepo *repository.MessageRepository,
 	channelRepo *repository.ChannelRepository,
 	aiClient *aiengine.HTTPClient,
+	workflowClient *aiengine.WorkflowClient,
 	billingClient *AIBillingClient,
 ) *ChatService {
 	return &ChatService{
-		convRepo:      convRepo,
-		msgRepo:       msgRepo,
-		channelRepo:   channelRepo,
-		aiClient:      aiClient,
-		billingClient: billingClient,
+		convRepo:       convRepo,
+		msgRepo:        msgRepo,
+		channelRepo:    channelRepo,
+		aiClient:       aiClient,
+		workflowClient: workflowClient,
+		billingClient:  billingClient,
 	}
 }
 
@@ -190,6 +193,44 @@ func (s *ChatService) SendMessage(tenantID, convID, senderID, senderType, sender
 	return msg, nil
 }
 
+
+// EnsureChannelConversation 渠道入站：确保会话存在（按 channel+客户ID 幂等）
+func (s *ChatService) EnsureChannelConversation(tenantID, convID, channel, channelID, customerName string) (*models.Conversation, error) {
+	tID, _ := uuid.Parse(tenantID)
+
+	// 1. 若客户端指定了有效会话 ID，直接取
+	if convID != "" {
+		conv, err := s.convRepo.GetByID(tenantID, convID)
+		if err == nil && conv != nil && conv.ID != uuid.Nil {
+			return conv, nil
+		}
+	}
+
+	// 2. 按渠道+客户标识幂等查
+	if channelID != "" {
+		conv, err := s.convRepo.GetByChannel(tID, channel, channelID)
+		if err == nil && conv != nil {
+			return conv, nil
+		}
+	}
+
+	// 3. 创建新会话
+	conv := &models.Conversation{
+		ID:           uuid.New(),
+		TenantID:     tID,
+		UserID:       uuid.Nil,
+		Channel:      channel,
+		ChannelID:    channelID,
+		CustomerID:   channelID,
+		CustomerName: customerName,
+		Status:       "active",
+	}
+	if err := s.convRepo.Create(conv); err != nil {
+		return nil, err
+	}
+	return conv, nil
+}
+
 func (s *ChatService) GenerateAIMessage(ctx context.Context, tenantID, convID, userID string, userContent string, systemPrompt string, agentID string, model string) (<-chan StreamToken, *models.Message, error) {
 	tID, _ := uuid.Parse(tenantID)
 	cID, _ := uuid.Parse(convID)
@@ -199,7 +240,8 @@ func (s *ChatService) GenerateAIMessage(ctx context.Context, tenantID, convID, u
 		return nil, nil, err
 	}
 
-	historyMsgs, err := s.msgRepo.GetRecentMessages(convID, 20)
+	// 最近 50 条消息作为上下文（覆盖长对话，成本可控）
+	historyMsgs, err := s.msgRepo.GetRecentMessages(convID, 50)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get history failed: %w", err)
 	}
@@ -219,14 +261,52 @@ func (s *ChatService) GenerateAIMessage(ctx context.Context, tenantID, convID, u
 		})
 	}
 
+	// 若智能体绑定了工作流子流程，先触发执行，并将结果注入上下文，
+	// 让 AI 基于多智能体协同产出的子流程结果生成最终回复。
+	promptInput := userContent
+	if s.workflowClient != nil && agentID != "" {
+		workflowID := s.convRepo.GetAgentWorkflowID(tenantID, agentID)
+		if workflowID != "" {
+			wfCtx, wfCancel := context.WithTimeout(ctx, 30*time.Second)
+			wfResp, wfErr := s.workflowClient.ExecuteWorkflow(wfCtx, workflowID, tenantID, userID,
+				map[string]interface{}{
+					"query":     userContent,
+					"tenant_id": tenantID,
+					"user_id":   userID,
+				})
+			wfCancel()
+			if wfErr == nil && wfResp != nil && wfResp.Success && len(wfResp.Output) > 0 {
+				if outJSON, jsonErr := json.Marshal(wfResp.Output); jsonErr == nil {
+					promptInput = fmt.Sprintf("用户输入：%s\n\n多智能体协同子流程执行结果（请基于该结果组织回复）：\n%s",
+						userContent, string(outJSON))
+				}
+			} else if wfErr != nil {
+				// 工作流失败时降级为纯对话，不阻断用户消息
+				log.Printf("workflow execution degraded, agent=%s: %v", agentID, wfErr)
+			}
+		}
+	}
+
+	// 取智能体绑定的知识库 ID 与人设（personality_config → system_prompt），让 AI Engine 做 RAG 与角色约束
+	kbIDs, persona := s.convRepo.GetAgentRAGConfig(tenantID, agentID)
+	kbID := ""
+	if len(kbIDs) > 0 && kbIDs[0] != "" {
+		kbID = kbIDs[0]
+	}
+	sysPrompt := systemPrompt
+	if persona != "" {
+		sysPrompt = persona + "。" // 智能体人设优先
+	}
+
 	aiReq := aiengine.GenerateReplyRequest{
 		TenantID:       tenantID,
 		UserID:         userID,
-		Input:          userContent,
+		Input:          promptInput,
 		AgentID:        agentID,
 		ConversationID: convID,
 		History:        history,
-		SystemPrompt:   systemPrompt,
+		SystemPrompt:   sysPrompt,
+		KnowledgeBaseID: kbID,
 		Model:          model,
 		Context: map[string]string{
 			"tenant_id": tenantID,
@@ -304,23 +384,8 @@ func (s *ChatService) GenerateAIMessage(ctx context.Context, tenantID, convID, u
 			"tokens_used": aiMsg.TokensUsed,
 		})
 
-		// Platform-managed billing: if tenant has no own API key, deduct AI cost
-		if s.billingClient != nil && !s.HasTenantOwnAPIKey(tID) {
-			// Estimate input/output split: 70% input, 30% output if not tracked separately
-			inputTokens := int(float64(tokensUsed) * 0.7)
-			outputTokens := tokensUsed - inputTokens
-			if err := s.billingClient.DeductAICost(tenantID, modelUsed, inputTokens, outputTokens); err != nil {
-				log.Printf("WARNING: AI billing deduct failed for tenant %s: %v", tenantID, err)
-				// If insufficient balance, notify via stream (non-fatal for already-generated response)
-				if strings.Contains(err.Error(), "insufficient balance") {
-					streamCh <- StreamToken{
-						Content:   "[余额不足] AI usage quota exceeded, please top up.",
-						IsFinal:   false,
-						MessageID: aiMsg.ID.String(),
-					}
-				}
-			}
-		}
+		// 平台托管扣费统一由 ai-engine 侧执行（billing-service internal 接口），
+		// chat-service 不再重复扣费（历史 DeductAICost 曾 404 从未生效，且与 ai-engine 双记账风险）。
 
 		streamCh <- StreamToken{
 			Content:   "",

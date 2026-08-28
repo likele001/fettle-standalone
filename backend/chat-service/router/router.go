@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewRouter(db *gorm.DB, jwtSecret string, aiEngineURL string) *gin.Engine {
+func NewRouter(db *gorm.DB, jwtSecret string, aiEngineURL string) (*gin.Engine, *service.ChatService) {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.TraceMiddleware())
@@ -33,8 +33,9 @@ func NewRouter(db *gorm.DB, jwtSecret string, aiEngineURL string) *gin.Engine {
 	channelRepo := repository.NewChannelRepository(db)
 	adminRepo := repository.NewAdminRepository(db)
 	aiClient := aiengine.NewHTTPClient(aiEngineURL)
-	billingClient := service.NewAIBillingClient("http://localhost:20006")
-	chatService := service.NewChatService(convRepo, msgRepo, channelRepo, aiClient, billingClient)
+	workflowClient := aiengine.NewWorkflowClient(aiEngineURL)
+	billingClient := service.NewAIBillingClient("http://localhost:9600")
+	chatService := service.NewChatService(convRepo, msgRepo, channelRepo, aiClient, workflowClient, billingClient)
 	exportService := service.NewExportService(convRepo, msgRepo)
 
 	wsManager := handler.NewWSManager(chatService)
@@ -92,5 +93,5 @@ func NewRouter(db *gorm.DB, jwtSecret string, aiEngineURL string) *gin.Engine {
 		admin.GET("/channels/stats", adminChannelHandler.GetChannelStats)
 	}
 
-	return r
+	return r, chatService
 }

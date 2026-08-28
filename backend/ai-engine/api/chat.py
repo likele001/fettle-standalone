@@ -52,6 +52,12 @@ class GenerateResponse(BaseModel):
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_chat(request: GenerateRequest):
     """生成对话回复"""
+    # 技能桥接
+    try:
+        from core.tools.skill_bridge import ensure_tenant_skills
+        await ensure_tenant_skills(request.tenant_id)
+    except Exception:
+        pass
     chat_req = ChatRequest(
         tenant_id=request.tenant_id,
         user_id=request.user_id,
@@ -87,6 +93,12 @@ async def generate_chat(request: GenerateRequest):
 @router.post("/stream")
 async def stream_chat(request: GenerateRequest):
     """流式生成对话回复（SSE）"""
+    # 技能桥接
+    try:
+        from core.tools.skill_bridge import ensure_tenant_skills
+        await ensure_tenant_skills(request.tenant_id)
+    except Exception:
+        pass
     chat_req = ChatRequest(
         tenant_id=request.tenant_id,
         user_id=request.user_id,

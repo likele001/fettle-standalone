@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	sharedMiddleware "ai-platform/shared/middleware"
 )
 
 // AdminClaims 平台管理员 JWT 声明（不含 tenant_id）
@@ -46,7 +45,7 @@ func AdminJWTAuthMiddleware(secret string) gin.HandlerFunc {
 
 		c.Set("user_id", claims.UserID)
 		c.Set("role", claims.Role)
-		c.Set("tenant_id", sharedMiddleware.DefaultTenantID)
+		c.Set("tenant_id", "")
 		c.Next()
 	}
 }

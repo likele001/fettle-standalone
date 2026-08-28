@@ -44,6 +44,13 @@ func Setup(skillService *service.SkillService, jwtSecret string) *gin.Engine {
 		}
 	}
 
+	// 内部服务端点（ai-engine 直连，不经 gateway JWT）
+	internal := r.Group("/internal")
+	internal.Use(middleware.InternalAuth())
+	{
+		internal.GET("/skills/installed", skillHandler.InternalInstalledSkills)
+	}
+
 	// Admin routes
 	admin := r.Group("/admin")
 	admin.Use(middleware.AdminAuth(jwtSecret))

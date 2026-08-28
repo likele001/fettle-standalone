@@ -8,7 +8,10 @@ from core.models.db_model_router import db_model_router, ModelConfig
 from core.models.providers.db_factory import DBProviderFactory
 from core.models.db_config import ai_config_db
 from core.models.providers import ChatMessage
+from core.models.model_gateway import model_gateway
+from core.billing import check_billing_quota, consume_billing, BillingQuotaExceeded
 from core.rag.knowledge_retriever import KnowledgeRetriever
+from core.memory.customer_memory import customer_memory
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +78,8 @@ class DBChatService:
                     latency_ms=(time.time() - start_time) * 1000
                 )
 
+            # 1.5 配额校验（平台托管：仅租户无自有 API Key 时，在取得 key 后执行）
+
             # 2. 选择模型
             model_config = await db_model_router.select_model(
                 tenant_id=request.tenant_id,
@@ -86,6 +91,25 @@ class DBChatService:
                 request.tenant_id,
                 model_config.provider_id,
             )
+
+            # 1.5 配额校验（仅平台托管：租户无自有 API Key 时）
+            if not tenant_api_key:
+                try:
+                    await check_billing_quota(request.tenant_id)
+                except BillingQuotaExceeded as qe:
+                    logger.warning(f"Billing quota exceeded for tenant {request.tenant_id}: {qe}")
+                    await self._log_usage(request, 0, 0, False, str(qe))
+                    return ChatResponse(
+                        reply=str(qe),
+                        model_used="",
+                        model_id="",
+                        provider_id="",
+                        provider_code="",
+                        tokens_used=0,
+                        input_tokens=0,
+                        output_tokens=0,
+                        latency_ms=(time.time() - start_time) * 1000
+                    )
 
             # 4. 创建 Provider
             provider = await DBProviderFactory.get_provider(
@@ -109,10 +133,11 @@ class DBChatService:
             # 5. 构建消息
             messages, knowledge_chunks = await self._build_messages(request)
 
-            # 6. 调用模型
-            response = await provider.chat(
+            # 6. 调用模型（P2-1：经统一网关，自动聚合降级+熔断）
+            response = await model_gateway.chat(
+                tenant_id=request.tenant_id,
+                preferred=model_config,
                 messages=messages,
-                model=model_config.model_name,
                 max_tokens=model_config.max_output_tokens,
                 temperature=0.7,
             )
@@ -120,8 +145,8 @@ class DBChatService:
             # 7. 计算费用
             input_tokens = response.tokens_used // 2
             output_tokens = response.tokens_used - input_tokens
-            input_cost = (input_tokens / 1000) * model_config.input_price_per_1k
-            output_cost = (output_tokens / 1000) * model_config.output_price_per_1k
+            input_cost = (input_tokens / 1000) * float(model_config.input_price_per1k)
+            output_cost = (output_tokens / 1000) * float(model_config.output_price_per1k)
 
             latency_ms = (time.time() - start_time) * 1000
 
@@ -137,6 +162,35 @@ class DBChatService:
                 input_cost=input_cost,
                 output_cost=output_cost,
             )
+
+            # 8.1 平台托管扣费（billing-service 统一记账；租户有自有 Key 不扣）
+            if not tenant_api_key:
+                await consume_billing(
+                    request.tenant_id,
+                    model_config.model_id,
+                    input_tokens,
+                    output_tokens,
+                )
+
+            # 8.2 调用链 trace
+            try:
+                from core.tracing import log_trace
+                log_trace(request.tenant_id, "chat", model_config.model_code or model_config.model_name,
+                          input_tokens, output_tokens, latency_ms, "success")
+            except Exception:
+                pass
+
+            # 异步更新客户摘要记忆（不阻塞回复）
+            try:
+                import asyncio
+                mem_msgs = (request.history or []) + [
+                    {"role": "user", "content": request.input},
+                    {"role": "assistant", "content": response.content},
+                ]
+                asyncio.create_task(customer_memory.update_memory(
+                    request.tenant_id, request.user_id, mem_msgs, ""))
+            except Exception as e:
+                logger.error(f"generate customer memory update schedule failed: {e}")
 
             return ChatResponse(
                 reply=response.content,
@@ -183,6 +237,8 @@ class DBChatService:
                 }
                 return
 
+            # 1.5 配额校验（平台托管：仅租户无自有 API Key 时，在取得 key 后执行）
+
             # 2. 选择模型
             model_config = await db_model_router.select_model(
                 tenant_id=request.tenant_id,
@@ -194,6 +250,20 @@ class DBChatService:
                 request.tenant_id,
                 model_config.provider_id,
             )
+
+            # 1.5 配额校验（仅平台托管：租户无自有 API Key 时）
+            if not tenant_api_key:
+                try:
+                    await check_billing_quota(request.tenant_id)
+                except BillingQuotaExceeded as qe:
+                    logger.warning(f"Billing quota exceeded for tenant {request.tenant_id}: {qe}")
+                    yield {
+                        "chunk": str(qe),
+                        "is_final": True,
+                        "model_used": "",
+                        "tokens_used": 0
+                    }
+                    return
 
             # 4. 创建 Provider
             provider = await DBProviderFactory.get_provider(
@@ -212,15 +282,20 @@ class DBChatService:
             # 5. 构建消息
             messages, knowledge_chunks = await self._build_messages(request)
 
-            # 6. 流式调用
+            # 6. 流式调用（P2-1：经统一网关，自动聚合降级+熔断；真实 token 由 provider usage 返回）
             tokens_used = 0
             full_content = []
+            input_tokens = 0
+            output_tokens = 0
 
-            async for chunk in provider.stream_chat(
+            usage_holder = {}
+            async for chunk in model_gateway.stream_chat(
+                tenant_id=request.tenant_id,
+                preferred=model_config,
                 messages=messages,
-                model=model_config.model_name,
                 max_tokens=model_config.max_output_tokens,
                 temperature=0.7,
+                usage_holder=usage_holder,
             ):
                 tokens_used += 1
                 full_content.append(chunk)
@@ -232,12 +307,15 @@ class DBChatService:
                     "provider_code": model_config.provider_code,
                     "tokens_used": tokens_used
                 }
+            input_tokens = usage_holder.get("input", 0)
+            output_tokens = usage_holder.get("output", 0)
 
-            # 7. 计算费用
-            input_tokens = tokens_used // 3
-            output_tokens = tokens_used - input_tokens
-            input_cost = (input_tokens / 1000) * model_config.input_price_per_1k
-            output_cost = (output_tokens / 1000) * model_config.output_price_per_1k
+            # 7. 计算费用（真实 token 缺失时回退估算）
+            if input_tokens <= 0 and output_tokens <= 0:
+                input_tokens = tokens_used // 3
+                output_tokens = tokens_used - input_tokens
+            input_cost = (input_tokens / 1000) * float(model_config.input_price_per1k)
+            output_cost = (output_tokens / 1000) * float(model_config.output_price_per1k)
 
             latency_ms = (time.time() - start_time) * 1000
 
@@ -253,6 +331,35 @@ class DBChatService:
                 input_cost=input_cost,
                 output_cost=output_cost,
             )
+
+            # 8.1 平台托管扣费（billing-service 统一记账；租户有自有 Key 不扣）
+            if not tenant_api_key:
+                await consume_billing(
+                    request.tenant_id,
+                    model_config.model_id,
+                    input_tokens,
+                    output_tokens,
+                )
+
+            # 8.2 调用链 trace
+            try:
+                from core.tracing import log_trace
+                log_trace(request.tenant_id, "chat_stream", model_config.model_code or model_config.model_name,
+                          input_tokens, output_tokens, latency_ms, "success")
+            except Exception:
+                pass
+
+            # 异步更新客户摘要记忆（不阻塞流式回复）
+            try:
+                import asyncio
+                mem_msgs = (request.history or []) + [
+                    {"role": "user", "content": request.input},
+                    {"role": "assistant", "content": "".join(full_content)},
+                ]
+                asyncio.create_task(customer_memory.update_memory(
+                    request.tenant_id, request.user_id, mem_msgs, ""))
+            except Exception as e:
+                logger.error(f"stream customer memory update schedule failed: {e}")
 
             yield {
                 "chunk": "",
@@ -283,6 +390,16 @@ class DBChatService:
 
         if request.system_prompt:
             system_parts.append(request.system_prompt)
+
+        # 客户记忆注入：跨会话记住客户
+        try:
+            mem = await customer_memory.get_memory(request.tenant_id, request.user_id)
+            if mem:
+                system_parts.append(
+                    f"以下是该客户的历史记忆（跨会话），请据此提供更贴心、更有连贯性的服务：\n{mem}"
+                )
+        except Exception as e:
+            logger.error(f"Customer memory injection failed: {e}")
 
         if request.knowledge_base_id:
             context_text, chunks = await self._retrieve_knowledge(

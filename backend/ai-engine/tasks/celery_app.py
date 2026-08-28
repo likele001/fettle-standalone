@@ -21,6 +21,7 @@ celery_app.conf.update(
     task_soft_time_limit=240,  # 4分钟软超时
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=100,
+    task_default_queue='fettle',  # 独立队列，避免与 labor 混用
 )
 
 # 自动发现任务

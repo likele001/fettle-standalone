@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	sharedMiddleware "ai-platform/shared/middleware"
 )
 
 // TenantClaims 租户 JWT 声明
@@ -43,7 +42,7 @@ func EitherAuthMiddleware(secret string) gin.HandlerFunc {
 
 		if err == nil && token.Valid {
 			c.Set("user_id", tenantClaims.UserID)
-			c.Set("tenant_id", sharedMiddleware.DefaultTenantID)
+			c.Set("tenant_id", tenantClaims.TenantID)
 			c.Set("role", tenantClaims.Role)
 			c.Next()
 			return
@@ -58,7 +57,7 @@ func EitherAuthMiddleware(secret string) gin.HandlerFunc {
 		if err == nil && token.Valid {
 			c.Set("user_id", adminClaims.UserID)
 			c.Set("role", adminClaims.Role)
-			c.Set("tenant_id", sharedMiddleware.DefaultTenantID)
+			c.Set("tenant_id", "")
 			c.Next()
 			return
 		}

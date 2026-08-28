@@ -37,7 +37,7 @@ export function getAPIKeys() {
 }
 
 // 创建 API Key
-export function createAPIKey(data: { provider_id: string; key_name: string; api_key: string; custom_base_url?: string }) {
+export function createAPIKey(data: { provider_id: string; api_key_name: string; api_key_value: string; custom_base_url?: string }) {
   return request.post('/tenant/ai/api-keys', data)
 }
 

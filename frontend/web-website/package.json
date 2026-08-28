@@ -9,9 +9,10 @@
     "preview": "vite preview --port 9900"
   },
   "dependencies": {
+    "@unhead/vue": "^1.11.20",
+    "pinia": "^2.1.7",
     "vue": "^3.4.31",
-    "vue-router": "^4.4.0",
-    "pinia": "^2.1.7"
+    "vue-router": "^4.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",

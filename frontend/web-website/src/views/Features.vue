@@ -6,7 +6,7 @@
         <SectionTitle
           tag="功能介绍"
           title="强大的 AI 对话功能"
-          description="从智能体管理到知识库构建，从多渠道接入到数据分析，一站式满足企业智能化需求"
+          description="SaaS 云服务 + 私有部署双版本，从智能体管理到知识库构建，从多渠道接入到 AI 工作流，一站式满足企业智能化需求"
           :center="true"
         />
       </div>
@@ -64,10 +64,10 @@
       <div class="container">
         <ScrollReveal>
           <h2>开始使用全部功能</h2>
-          <p>立即体验 AI 智能体平台的所有强大功能</p>
+          <p>选择 SaaS 云服务或私有部署，立即体验 AI 智能体平台</p>
           <div class="cta-actions">
-            <a href="#" class="btn btn-primary btn-large">免费试用</a>
-            <router-link to="/docs/guide" class="btn btn-secondary btn-large">查看文档</router-link>
+            <router-link to="/pricing" class="btn btn-primary btn-large">查看方案</router-link>
+            <router-link to="/docs/deploy" class="btn btn-secondary btn-large">私有部署</router-link>
           </div>
         </ScrollReveal>
       </div>
@@ -76,8 +76,16 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '@unhead/vue'
 import SectionTitle from '@/components/SectionTitle.vue'
 import ScrollReveal from '@/components/ScrollReveal.vue'
+
+useHead({
+  title: '功能介绍 - 辰科 fettle | AI 智能体平台',
+  meta: [
+    { name: 'description', content: '辰科 fettle 功能：智能体管理、知识库 RAG、AI 工作流编排、SSE 流式对话、多渠道接入（微信公众号/企微/飞书/钉钉/抖音）、数据分析。' }
+  ]
+})
 
 const features = [
   {
@@ -118,20 +126,20 @@ const features = [
   },
   {
     icon: '⚡',
-    title: '技能市场',
-    description: '丰富的内置技能让智能体更强大，支持自定义技能扩展，通过技能组合实现复杂业务逻辑。',
+    title: 'AI 工作流',
+    description: '可视化编排 AI 自动化任务，9 种节点类型满足复杂业务场景，支持定时触发和 Webhook 调用。',
     color: '#f59e0b',
     highlights: [
-      '内置常用技能开箱即用',
-      '支持自定义技能开发',
-      '技能热插拔无需重启',
-      '技能组合编排'
+      '可视化拖拽编排',
+      'LLM/RAG/Condition 等 9 种节点',
+      'Cron 定时自动执行',
+      'Webhook 外部触发'
     ],
-    tags: ['内置技能', '自定义', '热插拔'],
+    tags: ['工作流', '定时任务', '自动化'],
     demoItems: [
-      { icon: '🌐', title: '网页搜索', desc: '实时获取信息' },
-      { icon: '🧮', title: '数学计算', desc: '精确计算能力' },
-      { icon: '🎨', title: '图像生成', desc: 'AI 绘图能力' }
+      { icon: '📅', title: '日报生成', desc: '每日自动汇总' },
+      { icon: '🔔', title: '智能告警', desc: '条件触发通知' },
+      { icon: '🔗', title: 'Webhook', desc: '外部系统集成' }
     ]
   },
   {

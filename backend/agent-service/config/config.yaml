@@ -1,6 +1,6 @@
 app:
   name: "agent-service"
-  port: 20003
+  port: 9300
   env: "development"
   log_level: "info"
 
@@ -18,5 +18,5 @@ redis:
   db: 0
 
 ai_engine:
-  grpc_addr: "localhost:20008"
+  grpc_addr: "localhost:9701"
   timeout: 30

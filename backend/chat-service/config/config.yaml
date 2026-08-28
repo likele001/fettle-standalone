@@ -1,6 +1,6 @@
 app:
   name: "chat-service"
-  port: 20004
+  port: 9400
   env: "development"
   log_level: "info"
 
@@ -13,7 +13,7 @@ database:
   ssl_mode: "disable"
 
 mongodb:
-  uri: "mongodb://localhost:20012"
+  uri: "mongodb://localhost:9177"
   database: "ai_platform"
 
 redis:
@@ -22,10 +22,10 @@ redis:
   db: 0
 
 nats:
-  url: "nats://localhost:20013"
+  url: "nats://localhost:9422"
 
 agent_service:
-  addr: "http://localhost:20003"
+  addr: "http://localhost:9300"
 
 ai_engine:
-  grpc_addr: "localhost:20008"
+  grpc_addr: "localhost:9701"

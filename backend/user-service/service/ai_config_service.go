@@ -103,12 +103,12 @@ func (s *AIConfigService) GetTenantAIConfig(ctx context.Context, tenantID uuid.U
 	if err != nil {
 		// 如果不存在，创建默认配置
 		config = &models.TenantAIConfig{
-			TenantID:          tenantID,
-			AIEnabled:         true,
-			StreamingEnabled:  true,
-			MonthlyTokenLimit: 100000,
+			TenantID:           tenantID,
+			AIEnabled:          true,
+			StreamingEnabled:   true,
+			MonthlyTokenLimit:  100000,
 			RateLimitPerMinute: 60,
-			RateLimitPerDay:   1000,
+			RateLimitPerDay:    1000,
 		}
 		if err := s.tenantConfigRepo.Create(config); err != nil {
 			return nil, err
@@ -119,8 +119,44 @@ func (s *AIConfigService) GetTenantAIConfig(ctx context.Context, tenantID uuid.U
 
 // UpdateTenantAIConfig 更新租户 AI 配置
 func (s *AIConfigService) UpdateTenantAIConfig(ctx context.Context, tenantID uuid.UUID, config *models.TenantAIConfig) error {
-	config.TenantID = tenantID
-	return s.tenantConfigRepo.Upsert(config)
+	existing, err := s.tenantConfigRepo.GetByTenantID(tenantID)
+	if err != nil {
+		return s.tenantConfigRepo.Create(&models.TenantAIConfig{
+			TenantID:                tenantID,
+			DefaultProviderID:       config.DefaultProviderID,
+			DefaultChatModelID:      config.DefaultChatModelID,
+			DefaultEmbeddingModelID: config.DefaultEmbeddingModelID,
+			AIEnabled:               true,
+			StreamingEnabled:        true,
+			VisionEnabled:           false,
+			FunctionCallEnabled:     false,
+			MonthlyTokenLimit:       100000,
+			RateLimitPerMinute:      60,
+			RateLimitPerDay:         1000,
+			Config:                  config.Config,
+		})
+	}
+	if config.DefaultProviderID != nil {
+		existing.DefaultProviderID = config.DefaultProviderID
+	} else {
+		existing.DefaultProviderID = nil
+	}
+	if config.DefaultChatModelID != nil {
+		existing.DefaultChatModelID = config.DefaultChatModelID
+	} else {
+		existing.DefaultChatModelID = nil
+	}
+	if config.DefaultEmbeddingModelID != nil {
+		existing.DefaultEmbeddingModelID = config.DefaultEmbeddingModelID
+	} else {
+		existing.DefaultEmbeddingModelID = nil
+	}
+	if config.Config != nil {
+		for k, v := range config.Config {
+			existing.Config[k] = v
+		}
+	}
+	return s.tenantConfigRepo.Update(existing)
 }
 
 // ListTenantAPIKeys 获取租户 API Key 列表
@@ -257,7 +293,7 @@ func (s *AIConfigService) TestAPIKey(ctx context.Context, keyID uuid.UUID, tenan
 	if key.TenantID != tenantID {
 		return false, ErrUnauthorized
 	}
-	
+
 	// 这里应该实际调用 AI API 验证，暂时返回 true
 	// TODO: 实现实际的 API 调用验证
 	return true, nil

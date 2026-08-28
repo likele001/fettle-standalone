@@ -25,7 +25,7 @@ func main() {
 	}
 
 	// 环境变量
-	port := config.GetEnvInt("APP_PORT", 20001)
+	port := config.GetEnvInt("GATEWAY_PORT", 9100)
 	redisAddr := config.GetEnv("REDIS_ADDR", "localhost:6379")
 	redisPassword := config.GetEnv("REDIS_PASSWORD", "")
 	redisDB := config.GetEnvInt("REDIS_DB", 8)
@@ -52,7 +52,7 @@ func main() {
 
 	// 创建HTTP服务器
 	srv := &http.Server{
-		Addr:    ":" + config.GetEnv("APP_PORT_STR", "20001"),
+		Addr:    ":" + config.GetEnv("GATEWAY_PORT", "9100"),
 		Handler: r,
 	}
 

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"ai-platform/shared/cache"
-	"ai-platform/shared/middleware"
 	"ai-platform/user-service/models"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -39,6 +38,8 @@ type RegisterRequest struct {
 	Email       string `json:"email"`
 	Password    string `json:"password" binding:"required,min=6"`
 	Name        string `json:"name"`
+	TenantName  string `json:"tenant_name"`
+	InviteCode  string `json:"invite_code"`
 	CaptchaId   string `json:"captcha_id" binding:"required"`
 	CaptchaCode string `json:"captcha_code" binding:"required"`
 }
@@ -119,28 +120,72 @@ func (s *AuthService) Register(req *RegisterRequest) (*TokenResponse, *UserInfo,
 		}
 	}
 
+	// 处理邀请码
+	var inviteTenantID *uuid.UUID
+	var inviteRole string
+	if req.InviteCode != "" {
+		var inv struct {
+			ID       uuid.UUID
+			TenantID uuid.UUID
+			Role     string
+			Used     bool
+		}
+		err := s.db.Table("tenant_invitations").Select("id, tenant_id, role, used").
+			Where("code = ?", req.InviteCode).First(&inv).Error
+		if err != nil {
+			return nil, nil, errors.New("邀请码无效")
+		}
+		if inv.Used {
+			return nil, nil, errors.New("邀请码已使用")
+		}
+		inviteTenantID = &inv.TenantID
+		inviteRole = inv.Role
+
+		// 检查用户是否已属于其他租户
+		var existingMember struct{ ID uuid.UUID }
+		if err := s.db.Table("tenant_members").Where("user_id IS NOT NULL").First(&existingMember).Error; err == nil {
+			// 会在后面创建成员时检查
+		}
+	}
+
+	// 创建租户（有邀请码则不创建新租户）
+	var tenant models.Tenant
+	if inviteTenantID != nil {
+		if err := s.db.First(&tenant, "id = ?", *inviteTenantID).Error; err != nil {
+			return nil, nil, errors.New("邀请的租户不存在")
+		}
+	} else {
+		tenant = models.Tenant{
+			Name:     req.TenantName,
+			PlanType: "free",
+			Status:   "active",
+		}
+		if tenant.Name == "" {
+			tenant.Name = "我的企业"
+		}
+		if err := s.db.Create(&tenant).Error; err != nil {
+			return nil, nil, err
+		}
+	}
+
+	// 密码加密
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tenantID := uuid.MustParse(middleware.DefaultTenantID)
-
-	// First registered user becomes super_admin, subsequent get member
-	var userCount int64
-	s.db.Model(&models.User{}).Count(&userCount)
-	role := "member"
-	if userCount == 0 {
-		role = "super_admin"
+	// 创建用户
+	userRole := "super_admin"
+	if inviteRole != "" {
+		userRole = inviteRole
 	}
-
 	user := models.User{
-		TenantID:     tenantID,
+		TenantID:     tenant.ID,
 		Phone:        req.Phone,
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
 		Name:         req.Name,
-		Role:         role,
+		Role:         userRole,
 		Status:       "active",
 	}
 	if user.Name == "" {
@@ -154,8 +199,30 @@ func (s *AuthService) Register(req *RegisterRequest) (*TokenResponse, *UserInfo,
 		return nil, nil, err
 	}
 
+	// 创建租户成员记录
+	if inviteTenantID != nil {
+		member := models.TenantMember{
+			TenantID:  tenant.ID,
+			UserID:    user.ID,
+			Role:      inviteRole,
+			Status:    "active",
+			InvitedBy: nil,
+		}
+		s.db.Create(&member)
+		// 标记邀请码已使用
+		s.db.Table("tenant_invitations").Where("code = ?", req.InviteCode).Update("used", true)
+	} else {
+		member := models.TenantMember{
+			TenantID: tenant.ID,
+			UserID:   user.ID,
+			Role:     "owner",
+			Status:   "active",
+		}
+		s.db.Create(&member)
+	}
+
 	// 生成Token
-	tokens, err := s.generateTokens(user.ID.String(), tenantID.String(), user.Role)
+	tokens, err := s.generateTokens(user.ID.String(), tenant.ID.String(), user.Role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -192,8 +259,7 @@ func (s *AuthService) Login(req *LoginRequest) (*TokenResponse, *UserInfo, error
 
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// 普通用户表没找到，尝试管理员表
-			return s.loginAsAdmin(req)
+			return nil, nil, errors.New("账号或密码错误")
 		}
 		return nil, nil, err
 	}
@@ -223,52 +289,6 @@ func (s *AuthService) Login(req *LoginRequest) (*TokenResponse, *UserInfo, error
 		Role:      user.Role,
 		TenantID:  user.TenantID.String(),
 		AvatarURL: user.AvatarURL,
-	}
-
-	return tokens, userInfo, nil
-}
-
-// loginAsAdmin 尝试从管理员表登录
-func (s *AuthService) loginAsAdmin(req *LoginRequest) (*TokenResponse, *UserInfo, error) {
-	var admin models.AdminUser
-	var err error
-
-	if phoneRegex.MatchString(req.Account) {
-		err = s.db.Where("phone = ?", req.Account).First(&admin).Error
-	} else {
-		err = s.db.Where("email = ?", req.Account).First(&admin).Error
-	}
-
-	if err != nil {
-		return nil, nil, errors.New("账号或密码错误")
-	}
-
-	if admin.Status != "active" {
-		return nil, nil, errors.New("账号已被禁用")
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(req.Password)); err != nil {
-		return nil, nil, errors.New("账号或密码错误")
-	}
-
-	now := time.Now()
-	admin.LastLoginAt = &now
-	s.db.Save(&admin)
-
-	tenantID := middleware.DefaultTenantID
-	tokens, err := s.generateTokens(admin.ID.String(), tenantID, admin.Role)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	userInfo := &UserInfo{
-		ID:        admin.ID.String(),
-		Phone:     admin.Phone,
-		Email:     admin.Email,
-		Name:      admin.Name,
-		Role:      admin.Role,
-		TenantID:  tenantID,
-		AvatarURL: admin.AvatarURL,
 	}
 
 	return tokens, userInfo, nil
@@ -313,7 +333,7 @@ func (s *AuthService) generateTokens(userID, tenantID, role string) (*TokenRespo
 
 	accessClaims := Claims{
 		UserID:   userID,
-		TenantID: middleware.DefaultTenantID,
+		TenantID: tenantID,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(accessExpire),
@@ -323,7 +343,7 @@ func (s *AuthService) generateTokens(userID, tenantID, role string) (*TokenRespo
 	}
 	refreshClaims := Claims{
 		UserID:   userID,
-		TenantID: middleware.DefaultTenantID,
+		TenantID: tenantID,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(refreshExpire),

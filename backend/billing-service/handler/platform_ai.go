@@ -65,6 +65,40 @@ func (h *AIBillingHandler) GetBalance(c *gin.Context) {
 	})
 }
 
+
+// InternalGetBalance 内部服务查询余额（无 JWT，供 ai-engine 等本机服务使用）
+func (h *AIBillingHandler) InternalGetBalance(c *gin.Context) {
+	tenantID := c.Query("tenant_id")
+	if tenantID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "tenant_id required"})
+		return
+	}
+	tenantUUID, err := uuid.Parse(tenantID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1, "message": "invalid tenant_id"})
+		return
+	}
+	balance, packages, err := h.aiService.GetBalance(tenantUUID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 1, "message": err.Error()})
+		return
+	}
+	var totalTokens, remainingTokens int64
+	for _, p := range packages {
+		totalTokens += p.TokenAmount
+		remainingTokens += p.TokenRemaining
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"data": gin.H{
+			"balance":          balance,
+			"packages":         packages,
+			"total_tokens":     totalTokens,
+			"remaining_tokens": remainingTokens,
+		},
+	})
+}
+
 // Recharge 管理员充值
 func (h *AIBillingHandler) Recharge(c *gin.Context) {
 	var req struct {

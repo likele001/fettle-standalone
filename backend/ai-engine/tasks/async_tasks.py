@@ -31,14 +31,14 @@ async def _generate_and_store(file_path: str, metadata: Dict[str, Any]):
     tenant_id = metadata.get("tenant_id", "")
     collection_name = f"kb_{kb_id}"
 
-    from pymilvus import Collection, CollectionSchema, FieldSchema, DataType, connections
+    from pymilvus import Collection, CollectionSchema, FieldSchema, DataType, connections, utility
 
     connections.connect(host="localhost", port="19530")
 
-    if not Collection.exists(collection_name):
+    if not utility.has_collection(collection_name):
         fields = [
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1536),
+            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=2048),
             FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
             FieldSchema(name="metadata", dtype=DataType.VARCHAR, max_length=65535),
             FieldSchema(name="doc_id", dtype=DataType.VARCHAR, max_length=255),

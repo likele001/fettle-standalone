@@ -166,11 +166,11 @@
     <section class="cta-section">
       <div class="container">
         <ScrollReveal>
-          <h2>体验企业级 AI 对话平台</h2>
-          <p>安全、稳定、可扩展，让您的业务更智能</p>
+          <h2>体验企业级 AI 智能体平台</h2>
+          <p>SaaS 云服务即开即用，或私有部署数据自主可控</p>
           <div class="cta-actions">
-            <a href="#" class="btn btn-primary btn-large">免费试用</a>
-            <router-link to="/docs/deploy" class="btn btn-secondary btn-large">查看部署文档</router-link>
+            <router-link to="/pricing" class="btn btn-primary btn-large">查看方案</router-link>
+            <router-link to="/docs/deploy" class="btn btn-secondary btn-large">快速部署</router-link>
           </div>
         </ScrollReveal>
       </div>
@@ -179,17 +179,25 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '@unhead/vue'
 import SectionTitle from '@/components/SectionTitle.vue'
 import ScrollReveal from '@/components/ScrollReveal.vue'
 
+useHead({
+  title: '技术特点 - 辰科 fettle | 企业级 AI 架构',
+  meta: [
+    { name: 'description', content: '辰科 fettle 技术优势：多租户 SaaS + 私有部署双版本、SSE 流式对话、AES-256 加密、Go+Python 微服务架构、Docker 一键部署。' }
+  ]
+})
+
 const advantages = [
-  {
-    icon: '🏢',
-    title: '多租户架构',
-    description: '完整的多租户支持，数据完全隔离，独立配置，满足 SaaS 场景需求',
-    color: '#3b82f6',
-    features: ['租户数据隔离', '独立配置管理', '租户级配额控制', '统一平台管理']
-  },
+    {
+      icon: '🏢',
+      title: '多租户架构',
+      description: '完整的多租户支持，数据完全隔离，独立配置，满足 SaaS 场景需求。同时提供单租户私有部署版',
+      color: '#3b82f6',
+      features: ['租户数据隔离', 'SaaS + 私有部署', '租户级配额控制', '统一平台管理']
+    },
   {
     icon: '⚡',
     title: 'SSE 流式对话',
@@ -228,12 +236,12 @@ const advantages = [
 ]
 
 const comparison = [
-  { feature: '部署方式', ours: 'Docker 一键部署', traditional: '手动配置复杂' },
+  { feature: '部署方式', ours: 'Docker 一键部署 / SaaS', traditional: '手动配置复杂' },
   { feature: '模型支持', ours: '10+ 主流模型', traditional: '单一模型' },
   { feature: '响应速度', ours: 'SSE 流式 < 100ms', traditional: '同步等待 2-5s' },
-  { feature: '多租户', ours: '完整支持', traditional: '不支持' },
+  { feature: '多租户 / 私有化', ours: 'SaaS + 私有部署双版本', traditional: '不支持' },
   { feature: '知识库', ours: 'RAG 检索增强', traditional: '无' },
-  { feature: '技能扩展', ours: '插件化支持', traditional: '固定功能' },
+  { feature: '工作流', ours: 'AI 自动化工作流', traditional: '无' },
   { feature: '数据分析', ours: '完整统计报表', traditional: '基础日志' },
   { feature: '安全性', ours: 'API Key 加密', traditional: '明文存储' }
 ]

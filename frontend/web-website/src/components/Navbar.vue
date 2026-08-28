@@ -10,26 +10,26 @@
               <circle cx="16" cy="16" r="3" fill="#3b82f6"/>
             </svg>
           </div>
-          <span class="logo-text">AI 智能体平台</span>
+          <span class="logo-text">辰科 fettle</span>
         </router-link>
 
         <div class="nav-links" :class="{ active: mobileMenuOpen }">
-          <router-link to="/" @click="closeMobile">首页</router-link>
-          <router-link to="/features" @click="closeMobile">功能</router-link>
-          <router-link to="/advantages" @click="closeMobile">特点</router-link>
-          <router-link to="/pricing" @click="closeMobile">定价</router-link>
+          <a @click.prevent="navigate('/')">首页</a>
+          <a @click.prevent="navigate('/features')">功能</a>
+          <a @click.prevent="navigate('/advantages')">特点</a>
+          <a @click.prevent="navigate('/pricing')">定价</a>
           <div class="dropdown">
             <span class="dropdown-trigger">文档</span>
             <div class="dropdown-menu">
-              <router-link to="/docs/deploy" @click="closeMobile">部署教程</router-link>
-              <router-link to="/docs/guide" @click="closeMobile">使用指南</router-link>
+              <a @click.prevent="navigate('/docs/deploy')">部署教程</a>
+              <a @click.prevent="navigate('/docs/guide')">使用指南</a>
             </div>
           </div>
         </div>
 
         <div class="nav-actions">
-          <a href="#" class="btn btn-ghost btn-small">登录</a>
-          <a href="#" class="btn btn-primary btn-small">免费试用</a>
+          <a :href="urls.login" target="_blank" rel="noopener" class="btn btn-ghost btn-small">登录</a>
+          <a :href="urls.register" target="_blank" rel="noopener" class="btn btn-primary btn-small">免费试用</a>
         </div>
 
         <button class="mobile-toggle" @click="toggleMobile" :class="{ active: mobileMenuOpen }">
@@ -40,11 +40,17 @@
       </div>
     </div>
   </nav>
+
+  <div class="mobile-overlay" :class="{ active: mobileMenuOpen }" @click="closeMobile"></div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { SITE_URLS } from '@/config/site'
 
+const urls = SITE_URLS
+const router = useRouter()
 const isScrolled = ref(false)
 const mobileMenuOpen = ref(false)
 
@@ -52,14 +58,36 @@ const handleScroll = () => {
   isScrolled.value = window.scrollY > 20
 }
 
+const lockScroll = () => {
+  document.documentElement.style.overflow = 'hidden'
+  document.body.style.overflow = 'hidden'
+}
+
+const unlockScroll = () => {
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
+}
+
 const toggleMobile = () => {
   mobileMenuOpen.value = !mobileMenuOpen.value
-  document.body.style.overflow = mobileMenuOpen.value ? 'hidden' : ''
+  if (mobileMenuOpen.value) {
+    lockScroll()
+  } else {
+    unlockScroll()
+  }
 }
 
 const closeMobile = () => {
+  if (!mobileMenuOpen.value) return
   mobileMenuOpen.value = false
-  document.body.style.overflow = ''
+  unlockScroll()
+}
+
+const navigate = (path: string) => {
+  closeMobile()
+  nextTick(() => {
+    router.push(path)
+  })
 }
 
 onMounted(() => {
@@ -68,6 +96,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  unlockScroll()
 })
 </script>
 
@@ -77,14 +106,14 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  z-index: $z-fixed;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+  z-index: $z-modal;
+  background: #ffffff;
+  border-bottom: 1px solid $border-light;
   transition: all $transition-normal;
 
   &.scrolled {
-    box-shadow: $shadow-sm;
-    background: rgba(255, 255, 255, 0.98);
+    box-shadow: $shadow-md;
+    border-bottom-color: transparent;
   }
 }
 
@@ -211,6 +240,8 @@ onUnmounted(() => {
   border: none;
   cursor: pointer;
   padding: 0;
+  position: relative;
+  z-index: $z-modal + 1;
 
   span {
     display: block;
@@ -236,6 +267,24 @@ onUnmounted(() => {
   }
 }
 
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: $z-modal - 1;
+  opacity: 0;
+  transition: opacity $transition-normal;
+  -webkit-tap-highlight-color: transparent;
+
+  &.active {
+    opacity: 1;
+  }
+}
+
 @include mobile {
   .nav-links {
     position: fixed;
@@ -243,13 +292,17 @@ onUnmounted(() => {
     left: 0;
     right: 0;
     bottom: 0;
-    background: $bg-white;
+    z-index: $z-modal;
+    background: #ffffff;
     flex-direction: column;
     align-items: stretch;
     padding: $spacing-xl;
     gap: $spacing-lg;
     transform: translateX(100%);
     transition: transform $transition-normal;
+    touch-action: manipulation;
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
 
     &.active {
       transform: translateX(0);
@@ -259,17 +312,35 @@ onUnmounted(() => {
       font-size: 18px;
       padding: $spacing-md 0;
       border-bottom: 1px solid $border-light;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
   }
 
   .dropdown {
+    .dropdown-trigger {
+      font-size: 18px;
+      padding: $spacing-md 0;
+      display: block;
+      border-bottom: 1px solid $border-light;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     .dropdown-menu {
       position: static;
       transform: none;
       box-shadow: none;
-      padding-left: $spacing-md;
+      padding: 0 0 0 $spacing-md;
       opacity: 1;
       visibility: visible;
+
+      a {
+        font-size: 16px;
+        border-bottom: 1px dashed $border-light;
+      }
     }
   }
 
@@ -279,6 +350,10 @@ onUnmounted(() => {
 
   .mobile-toggle {
     display: flex;
+  }
+
+  .mobile-overlay {
+    display: block;
   }
 }
 </style>

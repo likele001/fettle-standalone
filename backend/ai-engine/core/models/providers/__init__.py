@@ -57,13 +57,17 @@ class ProviderFactory:
             logger.warning(f"Unknown provider: {provider_name}")
             return None
 
-        # 从全局 settings 读 API key (用 internal_code)
+        # 从全局 settings 读 API key + base_url (用 internal_code)
         api_key = getattr(settings, f"{internal_code}_api_key", None)
+        base_url = getattr(settings, f"{internal_code}_base_url", None)
         if not api_key:
             logger.warning(f"No API key for provider: {provider_name}")
             return None
 
-        instance = provider_class(api_key=api_key)
+        kwargs = {}
+        if base_url:
+            kwargs["base_url"] = base_url
+        instance = provider_class(api_key=api_key, **kwargs)
         cls._instances[provider_name] = instance
         return instance
 

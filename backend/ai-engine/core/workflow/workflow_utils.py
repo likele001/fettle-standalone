@@ -1,40 +1,27 @@
 """工作流工具函数"""
+import json
 from typing import Dict, Any, List
 
 from .node_types import (
     Workflow, WorkflowInstance, WorkflowResult,
-    Node, Edge, NodeType,
-    LLMNodeConfig, ToolNodeConfig, RAGNodeConfig,
-    ConditionNodeConfig, HTTPNodeConfig,
-    TextOutputNodeConfig, CronNodeConfig, WebhookNodeConfig
+    Node, Edge, NodeType
 )
 
 
 def dict_to_workflow(data: dict) -> Workflow:
+    nodes_data = data.get("nodes", [])
+    if isinstance(nodes_data, str):
+        nodes_data = json.loads(nodes_data)
+    
+    edges_data = data.get("edges", [])
+    if isinstance(edges_data, str):
+        edges_data = json.loads(edges_data)
+    
     nodes = []
-    for n in data.get("nodes", []):
+    for n in nodes_data:
         ntype = NodeType(n.get("type", "start"))
-        cfg = n.get("config", {})
-        if isinstance(cfg, dict):
-            config_map = {
-                NodeType.LLM: ("LLMNodeConfig", LLMNodeConfig),
-                NodeType.TOOL: ("ToolNodeConfig", ToolNodeConfig),
-                NodeType.RAG: ("RAGNodeConfig", RAGNodeConfig),
-                NodeType.CONDITION: ("ConditionNodeConfig", ConditionNodeConfig),
-                NodeType.HTTP: ("HTTPNodeConfig", HTTPNodeConfig),
-                NodeType.TEXT_OUTPUT: ("TextOutputNodeConfig", TextOutputNodeConfig),
-                NodeType.CRON: ("CronNodeConfig", CronNodeConfig),
-                NodeType.WEBHOOK: ("WebhookNodeConfig", WebhookNodeConfig),
-            }
-            entry = config_map.get(ntype)
-            if entry:
-                _, config_cls = entry
-                config = config_cls(node_type=ntype, **cfg)
-            else:
-                config = cfg
-        else:
-            config = cfg
-
+        config = n.get("config", {})
+        
         nodes.append(Node(
             id=n.get("id", ""),
             type=ntype,
@@ -43,7 +30,7 @@ def dict_to_workflow(data: dict) -> Workflow:
         ))
 
     edges = []
-    for e in data.get("edges", []):
+    for e in edges_data:
         edges.append(Edge(
             source=e.get("source", ""),
             target=e.get("target", ""),

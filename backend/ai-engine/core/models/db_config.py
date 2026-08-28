@@ -501,5 +501,67 @@ class AIConfigDB:
             }
 
 
+    # ========== P1-1 商业化配额 ==========
+
+    async def get_tenant_quota(self, tenant_id):
+        """查询租户配额：订阅 token 限额/已用 + 余额。返回 dict。"""
+        await self.init_pool()
+        sub_row = None
+        balance_row = None
+        async with self.pool.acquire() as conn:
+            sub_row = await conn.fetchrow(Q_SUB_SQL, tenant_id)
+        async with self.pool.acquire() as conn:
+            balance_row = await conn.fetchrow(Q_BAL_SQL, tenant_id)
+
+        quota = {
+            'tenant_id': tenant_id,
+            'enforced': False,
+            'token_limit': None,
+            'tokens_used': 0,
+            'has_active_sub': False,
+            'balance': None,
+            'total_recharged': None,
+            'total_consumed': None,
+        }
+
+        if sub_row and sub_row['token_limit'] is not None and sub_row['token_limit'] > 0:
+            quota['enforced'] = True
+            quota['token_limit'] = int(sub_row['token_limit'])
+            quota['tokens_used'] = int(sub_row['total_tokens_used'] or 0)
+            if sub_row['status'] == 'active':
+                quota['has_active_sub'] = True
+
+        if balance_row is not None and balance_row['balance'] is not None:
+            quota['balance'] = balance_row['balance']
+            quota['total_recharged'] = balance_row['total_recharged']
+            quota['total_consumed'] = balance_row['total_consumed']
+
+        return quota
+
+    async def consume_usage(self, tenant_id, total_tokens, total_cost):
+        """副金执行后记账：累加订阅已用 token，扣减余额。"""
+        await self.init_pool()
+        async with self.pool.acquire() as conn:
+            await conn.execute(Q_CONSUME_SUB, tenant_id, int(total_tokens or 0))
+            if total_cost and float(total_cost) > 0:
+                await conn.execute(Q_CONSUME_BAL, tenant_id, float(total_cost))
+
+    async def ensure_balance_row(self, tenant_id):
+        """为租户创建余额行（若不存在）。"""
+        await self.init_pool()
+        async with self.pool.acquire() as conn:
+            await conn.execute(Q_ENSURE_BAL, tenant_id)
+
+
+
 # 全局数据库访问实例
 ai_config_db = AIConfigDB()
+
+
+# P1-1 配额 SQL 常量
+Q_SUB_SQL = '''SELECT id, plan_id, status, token_limit, total_tokens_used, current_period_start, current_period_end FROM subscriptions WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1'''
+Q_BAL_SQL = '''SELECT balance, total_recharged, total_consumed FROM tenant_balances WHERE tenant_id = $1'''
+Q_CONSUME_SUB = '''UPDATE subscriptions SET total_tokens_used = total_tokens_used + $2 WHERE tenant_id = $1 AND deleted_at IS NULL'''
+Q_CONSUME_BAL = '''UPDATE tenant_balances SET balance = GREATEST(balance - $2, 0), total_consumed = total_consumed + $2, updated_at = now() WHERE tenant_id = $1'''
+Q_ENSURE_BAL = '''INSERT INTO tenant_balances (tenant_id, balance, total_recharged, total_consumed, created_at, updated_at) VALUES ($1, 0, 0, 0, now(), now()) ON CONFLICT (tenant_id) DO NOTHING'''
+

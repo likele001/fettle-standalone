@@ -170,16 +170,16 @@
     <!-- 添加 API Key 对话框 -->
     <el-dialog v-model="createKeyDialogVisible" title="添加 API Key" width="500px">
       <el-form :model="keyForm" :rules="keyRules" ref="keyFormRef" label-width="100px">
-        <el-form-item label="名称" prop="key_name">
-          <el-input v-model="keyForm.key_name" placeholder="如：生产环境 Key" />
+        <el-form-item label="名称" prop="api_key_name">
+          <el-input v-model="keyForm.api_key_name" placeholder="如：生产环境 Key" />
         </el-form-item>
         <el-form-item label="厂商" prop="provider_id">
           <el-select v-model="keyForm.provider_id" placeholder="选择厂商" style="width: 100%">
             <el-option v-for="p in providers" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="API Key" prop="api_key">
-          <el-input v-model="keyForm.api_key" type="password" show-password placeholder="输入您的 API Key" />
+        <el-form-item label="API Key" prop="api_key_value">
+          <el-input v-model="keyForm.api_key_value" type="password" show-password placeholder="输入您的 API Key" />
         </el-form-item>
         <el-form-item label="API 地址">
           <el-input v-model="keyForm.custom_base_url" placeholder="留空则使用厂商默认地址" />
@@ -314,15 +314,15 @@ const createKeyDialogVisible = ref(false)
 const creatingKey = ref(false)
 const keyFormRef = ref()
 const keyForm = ref({
-  key_name: '',
+  api_key_name: '',
   provider_id: '',
-  api_key: '',
+  api_key_value: '',
   custom_base_url: ''
 })
 const keyRules = {
-  key_name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
+  api_key_name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
   provider_id: [{ required: true, message: '请选择厂商', trigger: 'change' }],
-  api_key: [{ required: true, message: '请输入 API Key', trigger: 'blur' }]
+  api_key_value: [{ required: true, message: '请输入 API Key', trigger: 'blur' }]
 }
 
 // Model Dialog
@@ -506,7 +506,7 @@ async function handleSaveConfig() {
 }
 
 function showCreateKeyDialog() {
-  keyForm.value = { key_name: '', provider_id: '', api_key: '', custom_base_url: '' }
+  keyForm.value = { api_key_name: '', provider_id: '', api_key_value: '', custom_base_url: '' }
   createKeyDialogVisible.value = true
 }
 

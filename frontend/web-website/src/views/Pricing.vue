@@ -75,7 +75,18 @@
                 </li>
               </ul>
               <a
-                href="#"
+                v-if="plan.ctaHref"
+                :href="plan.ctaHref"
+                target="_blank"
+                rel="noopener"
+                class="plan-btn"
+                :class="{ 'btn-primary': plan.featured, 'btn-outline': !plan.featured }"
+              >
+                {{ plan.buttonText }}
+              </a>
+              <a
+                v-else
+                :href="`mailto:${contact.bdEmail}`"
                 class="plan-btn"
                 :class="{ 'btn-primary': plan.featured, 'btn-outline': !plan.featured }"
               >
@@ -83,6 +94,58 @@
               </a>
             </div>
           </ScrollReveal>
+        </div>
+      </div>
+    </section>
+
+    <!-- Standalone Section -->
+    <section class="section standalone-section">
+      <div class="container">
+        <div class="standalone-card">
+          <div class="standalone-icon">🏠</div>
+          <h2>私有部署版 · 数据自主可控</h2>
+          <p class="standalone-desc">
+            适合对数据安全有严格要求的企业，Docker Compose 一键部署，数据 100% 存储在您的服务器上。
+            全功能无阉割，无限智能体、无限对话、无限知识库。
+          </p>
+          <div class="standalone-features">
+            <div class="s-feature">
+              <span class="s-feature-icon">🐳</span>
+              <div>
+                <strong>Docker 一键部署</strong>
+                <span>一行命令启动所有服务</span>
+              </div>
+            </div>
+            <div class="s-feature">
+              <span class="s-feature-icon">🔒</span>
+              <div>
+                <strong>数据私有化</strong>
+                <span>完全内网部署，数据不外传</span>
+              </div>
+            </div>
+            <div class="s-feature">
+              <span class="s-feature-icon">∞</span>
+              <div>
+                <strong>无限使用</strong>
+                <span>无对话/智能体/知识库限制</span>
+              </div>
+            </div>
+            <div class="s-feature">
+              <span class="s-feature-icon">📋</span>
+              <div>
+                <strong>全部功能保留</strong>
+                <span>工作流 / 多渠道 / RAG 全支持</span>
+              </div>
+            </div>
+          </div>
+          <div class="standalone-actions">
+            <router-link to="/docs/deploy" class="btn btn-primary btn-large">
+              查看部署文档
+            </router-link>
+            <router-link to="/advantages" class="btn btn-outline btn-large">
+              了解更多
+            </router-link>
+          </div>
         </div>
       </div>
     </section>
@@ -191,10 +254,10 @@
         <ScrollReveal>
           <div class="cta-box">
             <h2>还有其他问题？</h2>
-            <p>我们的团队随时为您解答，帮助您选择最合适的方案</p>
+            <p>选择 SaaS 云服务即开即用，或私有部署数据自主可控</p>
             <div class="cta-actions">
-              <a href="#" class="btn btn-primary btn-large">联系我们</a>
-              <router-link to="/docs/guide" class="btn btn-secondary btn-large">查看文档</router-link>
+              <router-link to="/docs/deploy" class="btn btn-primary btn-large">私有部署</router-link>
+              <router-link to="/docs/guide" class="btn btn-secondary btn-large">使用指南</router-link>
             </div>
           </div>
         </ScrollReveal>
@@ -204,9 +267,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useHead } from '@unhead/vue'
 import SectionTitle from '@/components/SectionTitle.vue'
 import ScrollReveal from '@/components/ScrollReveal.vue'
+import { useSiteConfig } from '@/composables/useSiteConfig'
+
+const { contact, fetchContact } = useSiteConfig()
+
+useHead({
+  title: '定价方案 - 辰科 fettle | SaaS + 私有部署',
+  meta: [
+    { name: 'description', content: '辰科 fettle 定价方案：免费版、标准版、专业版、企业版 SaaS 云服务，及私有部署版（Docker 一键部署，数据自主可控）。' }
+  ]
+})
+
+onMounted(() => {
+  fetchContact()
+  const ld = document.createElement('script')
+  ld.type = 'application/ld+json'
+  ld.textContent = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "免费版有什么限制？", "acceptedAnswer": { "@type": "Answer", "text": "免费版包含 1 个智能体、100 条对话/月、1 个知识库，适合个人试用和小型项目。" } },
+      { "@type": "Question", "name": "私有部署版怎么收费？", "acceptedAnswer": { "@type": "Answer", "text": "私有部署版按年授权收费，包含一年更新和技术支持。数据 100% 私有化，Docker Compose 一键部署。" } },
+      { "@type": "Question", "name": "私有部署版和 SaaS 版功能一样吗？", "acceptedAnswer": { "@type": "Answer", "text": "私有部署版保留了全部核心业务功能：智能体管理、对话、多渠道接入、知识库 RAG、AI 工作流等。仅移除了多租户管理、支付计费等纯 SaaS 功能。" } }
+    ]
+  })
+  document.head.appendChild(ld)
+})
 
 const openFaq = ref<number | null>(0)
 
@@ -224,6 +314,7 @@ const plans = [
     color: 'linear-gradient(135deg, #94a3b8, #64748b)',
     featured: false,
     buttonText: '免费开始',
+    ctaHref: 'https://fettle.cenkor.cn/register',
     features: [
       { text: '1 个智能体', included: true },
       { text: '100 条对话/月', included: true },
@@ -247,6 +338,7 @@ const plans = [
     color: 'linear-gradient(135deg, #3b82f6, #2563eb)',
     featured: true,
     buttonText: '立即订阅',
+    ctaHref: 'https://fettle.cenkor.cn/register',
     features: [
       { text: '5 个智能体', included: true },
       { text: '5,000 条对话/月', included: true },
@@ -270,6 +362,7 @@ const plans = [
     color: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
     featured: false,
     buttonText: '立即订阅',
+    ctaHref: 'https://fettle.cenkor.cn/register',
     features: [
       { text: '20 个智能体', included: true },
       { text: '20,000 条对话/月', included: true },
@@ -380,6 +473,14 @@ const faqs = [
   {
     question: '数据安全性如何保障？',
     answer: '所有套餐均采用端到端加密传输，API Key 使用 AES-256 加密存储。企业版支持私有化部署，数据完全存储在您的服务器上。我们通过了 ISO 27001 信息安全认证。'
+  },
+  {
+    question: '私有部署版怎么收费？',
+    answer: '私有部署版按年授权收费，包含一年更新和技术支持。详情请联系我们的销售团队获取报价。'
+  },
+  {
+    question: '私有部署版和 SaaS 版功能一样吗？',
+    answer: '私有部署版保留了全部核心业务功能：智能体管理、对话、多渠道接入、知识库 RAG、AI 工作流等。仅移除了多租户管理、支付计费等纯 SaaS 功能。'
   },
   {
     question: '是否提供发票？',
@@ -605,6 +706,133 @@ const faqs = [
     &:hover {
       border-color: $primary;
       background: rgba($primary, 0.05);
+    }
+  }
+}
+
+// Standalone Section
+.standalone-section {
+  padding: $spacing-3xl 0;
+
+  .container {
+    @include container;
+  }
+}
+
+.standalone-card {
+  background: linear-gradient(135deg, $dark-800, $dark-900);
+  border-radius: $radius-2xl;
+  padding: $spacing-3xl $spacing-2xl;
+  text-align: center;
+  color: $text-white;
+  border: 1px solid $gray-700;
+
+  .standalone-icon {
+    font-size: 64px;
+    margin-bottom: $spacing-lg;
+  }
+
+  h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: $spacing-md;
+    color: $text-white;
+  }
+
+  .standalone-desc {
+    font-size: 1.1rem;
+    color: $gray-300;
+    max-width: 600px;
+    margin: 0 auto $spacing-2xl;
+    line-height: 1.7;
+  }
+}
+
+.standalone-features {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-lg;
+  margin-bottom: $spacing-2xl;
+
+  @include tablet {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include mobile {
+    grid-template-columns: 1fr;
+  }
+}
+
+.s-feature {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  text-align: left;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .s-feature-icon {
+    font-size: 36px;
+    flex-shrink: 0;
+  }
+
+  strong {
+    display: block;
+    font-size: 1rem;
+    color: $text-white;
+    margin-bottom: 2px;
+  }
+
+  span {
+    font-size: 0.85rem;
+    color: $gray-400;
+  }
+}
+
+.standalone-actions {
+  display: flex;
+  justify-content: center;
+  gap: $spacing-md;
+  flex-wrap: wrap;
+
+  .btn-primary {
+    background: #10b981;
+    color: $text-white;
+    padding: 14px 32px;
+    border-radius: $radius-md;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: #059669;
+      transform: translateY(-2px);
+      box-shadow: $shadow-lg;
+    }
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: $text-white;
+    border: 1px solid $gray-500;
+    padding: 14px 32px;
+    border-radius: $radius-md;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: $gray-300;
     }
   }
 }

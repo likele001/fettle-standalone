@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"ai-platform/shared/middleware"
 )
 
 // JWTConfig JWT配置
@@ -35,12 +34,12 @@ func NewJWTManager(config *JWTConfig) *JWTManager {
 	return &JWTManager{config: config}
 }
 
-// GenerateAccessToken 生成访问令牌（tenant_id 固定为 DefaultTenantID）
+// GenerateAccessToken 生成访问令牌
 func (m *JWTManager) GenerateAccessToken(userID, tenantID, role string) (string, error) {
 	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
-		TenantID: middleware.DefaultTenantID,
+		TenantID: tenantID,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.config.AccessTokenTTL)),
@@ -54,12 +53,12 @@ func (m *JWTManager) GenerateAccessToken(userID, tenantID, role string) (string,
 	return token.SignedString([]byte(m.config.Secret))
 }
 
-// GenerateRefreshToken 生成刷新令牌（tenant_id 固定为 DefaultTenantID）
+// GenerateRefreshToken 生成刷新令牌
 func (m *JWTManager) GenerateRefreshToken(userID, tenantID string) (string, error) {
 	now := time.Now()
 	claims := &Claims{
 		UserID:   userID,
-		TenantID: middleware.DefaultTenantID,
+		TenantID: tenantID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.config.RefreshTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),

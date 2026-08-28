@@ -1,25 +1,16 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
-
-RUN apk add --no-cache git
-
-COPY backend/shared /app/shared
-COPY backend/billing-service /app/billing-service
-
-WORKDIR /app/billing-service
-
+COPY backend/billing-service/go.mod backend/billing-service/go.sum ./
 RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux go build -o billing-service main.go
+
+COPY backend/billing-service/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -o billing-service .
 
 FROM alpine:latest
-
-WORKDIR /app
-
 RUN apk --no-cache add ca-certificates
+WORKDIR /app
+COPY --from=builder /app/billing-service .
 
-COPY --from=builder /app/billing-service/billing-service /app/
-
-EXPOSE 20006
-
+EXPOSE 9600
 CMD ["./billing-service"]

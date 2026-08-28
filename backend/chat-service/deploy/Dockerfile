@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
@@ -15,11 +15,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o chat-service main.go
 FROM alpine:latest
 
 WORKDIR /app
-
 RUN apk --no-cache add ca-certificates
 
 COPY --from=builder /app/chat-service/chat-service /app/
+COPY --from=builder /app/chat-service/config/config.yaml /app/config/
 
-EXPOSE 20004
+EXPOSE 9400
 
 CMD ["./chat-service"]
