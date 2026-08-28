@@ -150,6 +150,38 @@ cp .env.example .env
 | AI Engine gRPC | 20008 | AI 引擎 gRPC 接口 |
 | Web Admin | 20009 | 管理后台 |
 
+## 一键发布脚本（scripts/）
+
+适合**宝塔服务器日常迭代**——代码改动后无需手工编译、重启：
+
+| 脚本 | 作用 |
+|------|------|
+| `scripts/deploy.sh` | 全栈一键发布（Go 后端 + ai-engine + 前端） |
+| `scripts/release-fettle.sh` | Go 后端 6 服务编译与重启（`--only svc --restart`） |
+| `scripts/release-ai-engine.sh` | ai-engine (uvicorn + celery worker) 启停 |
+| `scripts/rollback.sh` | 按时间戳快照回滚 Go 二进制（`--latest` / `--to`） |
+| `scripts/restart-standalone.sh` | 旧版 nohup 重启脚本（兼容保留） |
+
+常用命令：
+
+```bash
+# 全栈发布
+bash scripts/deploy.sh
+
+# 仅修改某个 Go 服务时（其他服务不重启）
+bash scripts/release-fettle.sh --only chat-service --restart
+
+# 仅重启 ai-engine（uvicorn + celery）
+bash scripts/release-ai-engine.sh --restart
+
+# 构建失败/效果不对，回滚到上一个版本
+bash scripts/rollback.sh --latest
+```
+
+详细参数见 [`scripts/README.md`](scripts/README.md)。底层走宝塔 Go 项目管理器 120s 守护自启，无需手工 `nohup`。
+
+> 共享包 `backend/shared/config/config.go` 自动按可执行文件位置加载 `.env`，避免偷读主项目 fettle。
+
 ---
 
 ## 文档与示例

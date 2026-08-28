@@ -2,15 +2,53 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
 func init() {
-	// 自动加载项目的 .env 文件，不覆盖已存在的环境变量
-	// 这样宝塔里配的 APP_PORT 等会保留，JWT_SECRET 等从文件补充
-	_ = godotenv.Load("/www/wwwroot/fettle-standalone/.env")
+	// 自动加载 .env（不覆盖已有环境变量）：
+	// 1) 优先取执行文件所在目录的 .env（支持 fettle / fettle-standalone 各自独立部署）
+	// 2) 回退到当前工作目录的 .env
+	// 3) 沿父目录向上查找至 /.env（兼容以子目录为根的多服务部署）
+	candidates := envCandidates()
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			_ = godotenv.Load(p)
+			return
+		}
+	}
+}
+
+func envCandidates() []string {
+	candidates := make([]string, 0, 8)
+	if exe, err := os.Executable(); err == nil && exe != "" {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), ".env"))
+	}
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
+		candidates = append(candidates, filepath.Join(cwd, ".env"))
+		for _, p := range walkUpToRoot(cwd) {
+			candidates = append(candidates, filepath.Join(p, ".env"))
+		}
+	}
+	return candidates
+}
+
+// walkUpToRoot 从 start 逐级向上，返回每一级目录（含 start 与盘符/挂载根），用于查找上层 .env
+func walkUpToRoot(start string) []string {
+	var dirs []string
+	cur := start
+	for {
+		dirs = append(dirs, cur)
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+		cur = parent
+	}
+	return dirs
 }
 
 // AppConfig 应用通用配置
