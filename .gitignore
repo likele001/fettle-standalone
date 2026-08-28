@@ -87,3 +87,12 @@ docs/fettle-改造记录.md
 
 # Milvus runtime data (do not track)
 deploy/milvus/data/
+
+# === Backup & scratch ===
+backup_main_*/
+*.bak
+*.bak_*
+*.bak.*
+scripts_backup/
+fix_permission.py
+fix_build.py
