@@ -1,0 +1,3 @@
+{"ts": 1787763402.44, "type": "chat_stream", "tenant_id": "73bb11bc-e94b-4d2f-bfdc-638ee5df3df1", "model": "deepseek-v4-flash", "input_tokens": 116, "output_tokens": 342, "latency_ms": 4989.0, "status": "success", "extra": {}}
+{"ts": 1787763419.888, "type": "chat_stream", "tenant_id": "73bb11bc-e94b-4d2f-bfdc-638ee5df3df1", "model": "deepseek-v4-flash", "input_tokens": 240, "output_tokens": 450, "latency_ms": 5353.4, "status": "success", "extra": {}}
+{"ts": 1787795602.808, "type": "chat_stream", "tenant_id": "73bb11bc-e94b-4d2f-bfdc-638ee5df3df1", "model": "deepseek-v4-flash", "input_tokens": 183, "output_tokens": 780, "latency_ms": 10292.5, "status": "success", "extra": {}}

@@ -4,27 +4,29 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from croniter import croniter
-
-from .node_types import WorkflowInstance
-from .workflow_engine import workflow_engine
-from .workflow_db import workflow_db
-
 logger = logging.getLogger(__name__)
 
 
 class WorkflowScheduler:
 
     def __init__(self):
-        self.scheduler: Optional[AsyncIOScheduler] = None
-        self._job_map: dict = {}
+        self.scheduler = None
+        self._job_map = {}
+        self._AsyncIOScheduler = None
+        self._CronTrigger = None
+
+    def _lazy_import(self):
+        if self._AsyncIOScheduler is None:
+            from apscheduler.schedulers.asyncio import AsyncIOScheduler
+            from apscheduler.triggers.cron import CronTrigger
+            self._AsyncIOScheduler = AsyncIOScheduler
+            self._CronTrigger = CronTrigger
 
     async def start(self):
+        self._lazy_import()
         if self.scheduler and self.scheduler.running:
             return
-        self.scheduler = AsyncIOScheduler()
+        self.scheduler = self._AsyncIOScheduler()
         self.scheduler.add_job(
             self._sync_cron_jobs, "interval", seconds=30,
             id="_cron_sync", name="Sync cron triggers"
@@ -44,6 +46,7 @@ class WorkflowScheduler:
 
     async def _sync_cron_jobs(self):
         try:
+            from .workflow_db import workflow_db
             triggers = await workflow_db.list_active_triggers_by_type("cron")
             active_ids = {t["id"] for t in triggers}
 
@@ -69,7 +72,7 @@ class WorkflowScheduler:
                     if len(parts) == 5:
                         self.scheduler.add_job(
                             self._execute_workflow,
-                            CronTrigger(
+                            self._CronTrigger(
                                 minute=parts[0], hour=parts[1],
                                 day=parts[2], month=parts[3], day_of_week=parts[4],
                                 timezone=timezone_str
@@ -88,12 +91,16 @@ class WorkflowScheduler:
 
     async def _execute_workflow(self, workflow_id: str, tenant_id: str, node_id: str):
         try:
+            from .workflow_db import workflow_db
+            from .workflow_engine import workflow_engine
+            from .workflow_utils import dict_to_workflow
+            from .node_types import WorkflowInstance
+
             db_workflow = await workflow_db.get_workflow(workflow_id, tenant_id)
             if not db_workflow:
                 logger.warning(f"Cron trigger: workflow {workflow_id} not found")
                 return
 
-            from .workflow_utils import dict_to_workflow
             workflow = dict_to_workflow(db_workflow)
 
             now_str = datetime.now(timezone.utc).isoformat()

@@ -84,5 +84,13 @@ func Setup(billingService *service.BillingService, paymentService *service.Payme
 		admin.POST("/ai/recharge", aiBillingHandler.Recharge)
 	}
 
+	// 内部服务端点（ai-engine/chat-service 直连，不经 gateway JWT 代理）
+	internal := r.Group("/billing/internal")
+	internal.Use(middleware.InternalAuth())
+	{
+		internal.POST("/deduct-ai-cost", aiBillingHandler.DeductAICost)
+		internal.GET("/balance", aiBillingHandler.InternalGetBalance)
+	}
+
 	return r
 }

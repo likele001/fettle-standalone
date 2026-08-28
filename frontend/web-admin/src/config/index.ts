@@ -22,7 +22,7 @@ export const config = {
 
   // WebSocket配置
   websocket: {
-    url: import.meta.env.VITE_WS_URL || 'ws://localhost:20001/ws',
+    url: import.meta.env.VITE_WS_URL || 'ws://localhost:9100/ws',
     reconnectInterval: 3000,
     maxReconnectAttempts: 5
   },

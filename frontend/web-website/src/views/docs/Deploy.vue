@@ -91,6 +91,75 @@
           </div>
 
           <div class="tab-content">
+            <!-- 独立私有部署 -->
+            <div v-if="activeTab === 'standalone'" class="tab-panel">
+              <ScrollReveal>
+                <div class="deploy-section">
+                  <h3>🏠 私有部署版（推荐）</h3>
+                  <p class="deploy-desc">基于 Docker Compose 一键部署，数据 100% 私有化，适合对数据安全要求高的企业</p>
+
+                  <div class="steps">
+                    <div class="step">
+                      <div class="step-number">1</div>
+                      <div class="step-content">
+                        <h4>安装 Docker 和 Docker Compose</h4>
+                        <CodeBlock :code="dockerInstallCode" language="bash" />
+                      </div>
+                    </div>
+
+                    <div class="step">
+                      <div class="step-number">2</div>
+                      <div class="step-content">
+                        <h4>获取私有部署包</h4>
+                        <p>从 releases 页面下载 <code>fettle-standalone</code> 部署包，或直接克隆仓库：</p>
+                        <CodeBlock :code="standaloneCloneCode" language="bash" />
+                      </div>
+                    </div>
+
+                    <div class="step">
+                      <div class="step-number">3</div>
+                      <div class="step-content">
+                        <h4>配置环境变量</h4>
+                        <p>复制环境变量模板，修改 JWT_SECRET：</p>
+                        <CodeBlock :code="standaloneEnvCode" language="bash" />
+                      </div>
+                    </div>
+
+                    <div class="step">
+                      <div class="step-number">4</div>
+                      <div class="step-content">
+                        <h4>一键启动</h4>
+                        <p>所有服务将在后台自动启动：</p>
+                        <CodeBlock :code="standaloneUpCode" language="bash" />
+                      </div>
+                    </div>
+
+                    <div class="step">
+                      <div class="step-number">5</div>
+                      <div class="step-content">
+                        <h4>访问管理后台</h4>
+                        <p>打开浏览器访问 <code>http://服务器IP:20009</code>，使用默认账号登录：</p>
+                        <div class="login-info">
+                          <p><strong>账号：</strong><code>superadmin</code></p>
+                          <p><strong>密码：</strong><code>Admin@2026</code></p>
+                        </div>
+                        <p class="note">首次登录后请立即修改密码，并配置 AI 模型的 API Key。</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="notice-box">
+                    <h4>📋 系统要求</h4>
+                    <ul>
+                      <li>Docker Engine 24+（含 Compose v2 插件）</li>
+                      <li>4 GB 以上可用内存（Milvus 向量库约需 2 GB）</li>
+                      <li>20 GB 可用磁盘空间</li>
+                    </ul>
+                  </div>
+                </div>
+              </ScrollReveal>
+            </div>
+
             <!-- 宝塔面板部署 -->
             <div v-if="activeTab === 'bt'" class="tab-panel">
               <ScrollReveal>
@@ -162,7 +231,7 @@
                       <div class="step-number">7</div>
                       <div class="step-content">
                         <h4>配置 Nginx 反向代理</h4>
-                        <p>在宝塔面板中添加网站，配置反向代理到 Gateway 服务（端口 20001）</p>
+                        <p>在宝塔面板中添加网站，配置反向代理到 Gateway 服务（端口 9100）</p>
                       </div>
                     </div>
                   </div>
@@ -310,7 +379,7 @@
           <ScrollReveal>
             <div class="config-card">
               <h3>🔑 AI 模型配置</h3>
-              <p>在租户后台配置 AI 模型的 API Key：</p>
+              <p>在管理后台配置 AI 模型的 API Key：</p>
               <ul>
                 <li>通义千问 API Key</li>
                 <li>DeepSeek API Key</li>
@@ -373,10 +442,10 @@
       <div class="container">
         <ScrollReveal>
           <h2>需要帮助？</h2>
-          <p>如果部署过程中遇到问题，请联系我们的技术支持团队</p>
+          <p>选择适合您的部署方式，如果遇到问题请联系我们的技术支持团队</p>
           <div class="cta-actions">
-            <a href="#" class="btn btn-primary btn-large">联系支持</a>
-            <router-link to="/docs/guide" class="btn btn-secondary btn-large">查看使用指南</router-link>
+            <router-link to="/pricing" class="btn btn-primary btn-large">查看方案</router-link>
+            <router-link to="/docs/guide" class="btn btn-secondary btn-large">使用指南</router-link>
           </div>
         </ScrollReveal>
       </div>
@@ -386,15 +455,24 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useHead } from '@unhead/vue'
 import SectionTitle from '@/components/SectionTitle.vue'
 import ScrollReveal from '@/components/ScrollReveal.vue'
 import CodeBlock from '@/components/CodeBlock.vue'
 
-const activeTab = ref('bt')
+useHead({
+  title: '部署教程 - 辰科 fettle | 私有部署与 SaaS',
+  meta: [
+    { name: 'description', content: '辰科 fettle 部署指南：私有部署版 Docker Compose 一键部署（端口 20001-20025），宝塔面板部署，Docker 集群部署，原生部署。' }
+  ]
+})
+
+const activeTab = ref('standalone')
 
 const tabs = [
+  { id: 'standalone', label: '私有部署', icon: '🏠' },
   { id: 'bt', label: '宝塔面板', icon: '🎯' },
-  { id: 'docker', label: 'Docker', icon: '🐳' },
+  { id: 'docker', label: 'Docker 集群', icon: '🐳' },
   { id: 'native', label: '原生部署', icon: '🔧' }
 ]
 
@@ -432,12 +510,12 @@ REDIS_ADDR=127.0.0.1:6379
 REDIS_PASSWORD=
 
 # 服务地址
-USER_SERVICE_ADDR=http://localhost:20002
-AGENT_SERVICE_ADDR=http://localhost:20003
-CHAT_SERVICE_ADDR=http://localhost:20004
-SKILL_SERVICE_ADDR=http://localhost:20005
-BILLING_SERVICE_ADDR=http://localhost:20006
-AI_ENGINE_ADDR=http://localhost:20007
+USER_SERVICE_ADDR=http://localhost:9200
+AGENT_SERVICE_ADDR=http://localhost:9300
+CHAT_SERVICE_ADDR=http://localhost:9400
+SKILL_SERVICE_ADDR=http://localhost:9500
+BILLING_SERVICE_ADDR=http://localhost:9600
+AI_ENGINE_ADDR=http://localhost:9700
 EOF`
 
 const dbInitCode = `# 创建数据库
@@ -506,6 +584,37 @@ docker-compose ps
 # - ai-engine
 # - postgres
 # - redis`
+
+const standaloneCloneCode = `# 克隆私有部署仓库
+git clone <your-repo-url> fettle-standalone
+cd fettle-standalone
+
+# 或直接下载部署包解压
+wget <release-url>/fettle-standalone.tar.gz
+tar -xzf fettle-standalone.tar.gz
+cd fettle-standalone`
+
+const standaloneEnvCode = `# 复制环境变量模板
+cp .env.example .env
+
+# 编辑环境变量（务必修改 JWT_SECRET）
+vim .env
+
+# 关键修改项：
+# JWT_SECRET=替换为随机字符串
+# 可选：配置 AI 模型 API Key（也可在后台配置）`
+
+const standaloneUpCode = `# 一键启动所有服务
+docker compose up -d
+
+# 查看启动日志
+docker compose logs -f
+
+# 查看服务状态
+docker compose ps
+
+# 停止服务
+docker compose down`
 
 const dockerDownCode = `# 停止所有服务
 docker-compose down
@@ -601,7 +710,7 @@ const nginxConfigCode = `server {
 
     # API 网关
     location /api/ {
-        proxy_pass http://127.0.0.1:20001/;
+        proxy_pass http://127.0.0.1:9100/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -623,28 +732,32 @@ const nginxConfigCode = `server {
 
 const faqs = [
   {
-    question: 'Q: 最低服务器配置要求是什么？',
-    answer: 'A: 建议最低配置：2 核 CPU、4GB 内存、40GB 硬盘。推荐配置：4 核 CPU、8GB 内存、100GB SSD 硬盘。'
+    question: 'Q: SaaS 云服务和私有部署版有什么区别？',
+    answer: 'A: SaaS 版是多租户云服务，即开即用免运维；私有部署版（Standalone）是单租户 Docker 一键部署，数据完全存储在您的服务器上，适合对数据安全有严格要求的企业。'
   },
   {
-    question: 'Q: 支持哪些操作系统？',
-    answer: 'A: 支持 CentOS 7+、Ubuntu 18.04+、Debian 10+ 等主流 Linux 发行版。'
+    question: 'Q: 私有部署版最低服务器配置要求？',
+    answer: 'A: 建议最低配置：2 核 CPU、4GB 内存、40GB SSD。推荐配置：4 核 CPU、8GB 内存、100GB SSD。Milvus 向量数据库需要约 2GB 内存。'
   },
   {
-    question: 'Q: 如何配置 SSL 证书？',
-    answer: 'A: 在宝塔面板中添加网站后，可以直接申请免费 Let\'s Encrypt 证书，或上传自有证书。'
+    question: 'Q: 私有部署版支持哪些操作系统？',
+    answer: 'A: 只要支持 Docker Engine 24+ 的 Linux 发行版均可，包括 CentOS 7+、Ubuntu 18.04+、Debian 10+ 等。'
   },
   {
-    question: 'Q: 数据库密码忘记了怎么办？',
-    answer: 'A: 可以通过宝塔面板的数据库管理功能重置密码，或登录 PostgreSQL 修改用户密码。'
+    question: 'Q: 私有部署版的默认账号密码是什么？',
+    answer: 'A: 默认管理员账号 superadmin，密码 Admin@2026。首次登录后建议立即修改密码。'
   },
   {
-    question: 'Q: 如何备份数据？',
-    answer: 'A: 建议定期备份 PostgreSQL 数据库和 Redis 数据。宝塔面板提供自动备份功能，可以设置定时备份任务。'
+    question: 'Q: 私有部署版如何配置 AI 模型？',
+    answer: 'A: 有两种方式：1）在 .env 文件中配置 QWEN_API_KEY / DEEPSEEK_API_KEY；2）登录后台后在「AI 模型配置」页面添加。API Key 使用 AES-256 加密存储。'
   },
   {
-    question: 'Q: 服务启动失败怎么排查？',
-    answer: 'A: 查看对应服务的日志文件（logs/xxx-service.log），检查端口是否被占用，确认环境变量配置正确。'
+    question: 'Q: 如何备份和恢复数据？',
+    answer: 'A: 备份 PostgreSQL 数据库（docker compose exec postgres pg_dump）和 Minio 存储桶数据。恢复时先重建数据库再导入备份文件。'
+  },
+  {
+    question: 'Q: 私有部署版与多租户版功能上有什么差异？',
+    answer: 'A: 私有部署版移除了租户管理、支付计费、企业注册等纯 SaaS 功能，保留了全部业务核心功能：智能体管理、对话、多渠道接入、知识库 RAG、AI 工作流等。'
   }
 ]
 </script>
@@ -819,6 +932,57 @@ const faqs = [
       li {
         margin-bottom: $spacing-xs;
       }
+    }
+
+    .login-info {
+      background: $gray-50;
+      border-radius: $radius-md;
+      padding: $spacing-md $spacing-lg;
+      margin-bottom: $spacing-md;
+      display: inline-block;
+
+      p {
+        margin: 4px 0;
+        font-size: 0.95rem;
+      }
+
+      code {
+        background: $gray-200;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+      }
+    }
+
+    .note {
+      font-size: 0.9rem;
+      color: $text-muted;
+      font-style: italic;
+    }
+  }
+}
+
+.notice-box {
+  background: $gray-50;
+  border: 1px solid $border-light;
+  border-radius: $radius-lg;
+  padding: $spacing-xl;
+  margin-top: $spacing-2xl;
+
+  h4 {
+    font-size: 1.1rem;
+    margin-bottom: $spacing-md;
+    color: $text-primary;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: $spacing-lg;
+    color: $text-secondary;
+
+    li {
+      margin-bottom: $spacing-xs;
+      font-size: 0.95rem;
     }
   }
 }

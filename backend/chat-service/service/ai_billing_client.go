@@ -17,7 +17,7 @@ type AIBillingClient struct {
 }
 
 // NewAIBillingClient creates a new billing client.
-// baseURL is the internal billing-service address, e.g. "http://localhost:20006".
+// baseURL is the internal billing-service address, e.g. "http://localhost:9600".
 func NewAIBillingClient(baseURL string) *AIBillingClient {
 	return &AIBillingClient{
 		httpClient: &http.Client{Timeout: 5 * time.Second},

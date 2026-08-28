@@ -14,7 +14,6 @@ from core.workflow.workflow_utils import dict_to_workflow
 from core.workflow.workflow_engine import workflow_engine
 from core.workflow.workflow_db import workflow_db
 from core.workflow.scheduler import workflow_scheduler
-from core.constants import DEFAULT_TENANT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +23,9 @@ router = APIRouter(prefix="/workflows", tags=["workflows"])
 @router.get("")
 async def list_workflows(page: int = 1, page_size: int = 20,
                           x_tenant_id: Optional[str] = Header(None)):
-    tenant_id = x_tenant_id or DEFAULT_TENANT_ID
-    items, total = await workflow_db.list_workflows(tenant_id, page, page_size)
+    if not x_tenant_id:
+        return {"items": [], "total": 0, "page": page, "page_size": page_size}
+    items, total = await workflow_db.list_workflows(x_tenant_id, page, page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
@@ -160,7 +160,7 @@ async def validate_workflow(data: Dict[str, Any]):
 @router.get("/{workflow_id}")
 async def get_workflow(workflow_id: str,
                        x_tenant_id: Optional[str] = Header(None)):
-    tenant = x_tenant_id or DEFAULT_TENANT_ID
+    tenant = x_tenant_id or "default"
     workflow = await workflow_db.get_workflow(workflow_id, tenant)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -170,19 +170,22 @@ async def get_workflow(workflow_id: str,
 @router.post("")
 async def create_workflow(data: Dict[str, Any],
                           x_tenant_id: Optional[str] = Header(None)):
-    tenant_id = x_tenant_id or DEFAULT_TENANT_ID
+    tenant_id = x_tenant_id or "default"
     workflow = await workflow_db.create_workflow(data, tenant_id)
     nodes = data.get("nodes", [])
     status = data.get("status", "draft")
     await workflow_db.sync_workflow_triggers(workflow["id"], tenant_id, nodes, "active" if status == "published" else "draft")
-    await workflow_scheduler.reload_triggers()
+    try:
+        await workflow_scheduler.reload_triggers()
+    except Exception:
+        pass
     return workflow
 
 
 @router.put("/{workflow_id}")
 async def update_workflow(workflow_id: str, data: Dict[str, Any],
                           x_tenant_id: Optional[str] = Header(None)):
-    tenant_id = x_tenant_id or DEFAULT_TENANT_ID
+    tenant_id = x_tenant_id or "default"
     workflow = await workflow_db.update_workflow(workflow_id, data, tenant_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -190,18 +193,24 @@ async def update_workflow(workflow_id: str, data: Dict[str, Any],
         nodes = data.get("nodes", workflow.get("nodes", []))
         status = data.get("status", workflow.get("status", "draft"))
         await workflow_db.sync_workflow_triggers(workflow_id, tenant_id, nodes, "active" if status == "published" else "draft")
-        await workflow_scheduler.reload_triggers()
+        try:
+            await workflow_scheduler.reload_triggers()
+        except Exception:
+            pass
     return workflow
 
 
 @router.delete("/{workflow_id}")
 async def delete_workflow(workflow_id: str,
                           x_tenant_id: Optional[str] = Header(None)):
-    tenant_id = x_tenant_id or DEFAULT_TENANT_ID
+    tenant_id = x_tenant_id or "default"
     deleted = await workflow_db.delete_workflow(workflow_id, tenant_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found")
-    await workflow_scheduler.reload_triggers()
+    try:
+        await workflow_scheduler.reload_triggers()
+    except Exception:
+        pass
     return {"message": "Workflow deleted"}
 
 
@@ -209,54 +218,79 @@ async def delete_workflow(workflow_id: str,
 async def execute_workflow(workflow_id: str, data: Dict[str, Any],
                            x_tenant_id: Optional[str] = Header(None),
                            x_user_id: Optional[str] = Header(None)):
-    tenant_id = x_tenant_id or DEFAULT_TENANT_ID
+    tenant_id = x_tenant_id or "default"
     user_id = x_user_id or ""
 
-    db_workflow = await workflow_db.get_workflow(workflow_id, tenant_id)
-    if not db_workflow:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+    # 技能桥接：加载租户已安装技能为可执行工具（失败不阻断）
+    try:
+        from core.tools.skill_bridge import ensure_tenant_skills
+        await ensure_tenant_skills(tenant_id)
+    except Exception:
+        pass
 
-    workflow = dict_to_workflow(db_workflow)
-    input_data = data.get("input_data", {})
+    try:
+        db_workflow = await workflow_db.get_workflow(workflow_id, tenant_id)
+        if not db_workflow:
+            logger.error(f"Workflow not found: {workflow_id} tenant: {tenant_id}")
+            raise HTTPException(status_code=404, detail="Workflow not found")
 
-    instance_data = await workflow_db.create_instance(
-        workflow_id, tenant_id, user_id, input_data
-    )
+        logger.info(f"Found workflow: {workflow_id} nodes: {len(db_workflow.get('nodes', []))} edges: {len(db_workflow.get('edges', []))} start_node: {db_workflow.get('start_node')}")
 
-    instance = WorkflowInstance(
-        instance_id=instance_data["instance_id"],
-        workflow_id=workflow_id,
-        tenant_id=tenant_id,
-        user_id=user_id,
-        input_data=input_data,
-    )
+        workflow = dict_to_workflow(db_workflow)
+        input_data = data.get("input_data", {})
 
-    result = await workflow_engine.execute(workflow, instance)
+        logger.info(f"Workflow execution started: {workflow_id} input: {input_data}")
 
-    if result.success:
-        await workflow_db.update_instance(
-            instance_data["instance_id"], "success", result.output
-        )
-    else:
-        await workflow_db.update_instance(
-            instance_data["instance_id"], "failed", result.output, result.error
+        instance_data = await workflow_db.create_instance(
+            workflow_id, tenant_id, user_id, input_data
         )
 
-    return {
-        "success": result.success,
-        "output": result.output,
-        "error": result.error,
-        "instance_id": instance_data["instance_id"],
-        "duration": result.duration,
-    }
+        instance = WorkflowInstance(
+            instance_id=instance_data["instance_id"],
+            workflow_id=workflow_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            input_data=input_data,
+        )
+
+        result = await workflow_engine.execute(workflow, instance)
+
+        logger.info(f"Workflow execution completed: {workflow_id} success: {result.success} duration: {result.duration} error: {result.error}")
+
+        if result.success:
+            await workflow_db.update_instance(
+                instance_data["instance_id"], "success", result.output
+            )
+        else:
+            await workflow_db.update_instance(
+                instance_data["instance_id"], "failed", result.output, result.error
+            )
+
+        return {
+            "success": result.success,
+            "output": result.output,
+            "error": result.error,
+            "instance_id": instance_data["instance_id"],
+            "duration": result.duration,
+        }
+    except Exception as e:
+        logger.error(f"Workflow execution error: {workflow_id} error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
 
 
 @router.post("/{workflow_id}/stream")
 async def stream_execute_workflow(workflow_id: str, data: Dict[str, Any],
                                   x_tenant_id: Optional[str] = Header(None),
                                   x_user_id: Optional[str] = Header(None)):
-    tenant_id = x_tenant_id or DEFAULT_TENANT_ID
+    tenant_id = x_tenant_id or "default"
     user_id = x_user_id or ""
+
+    # 技能桥接
+    try:
+        from core.tools.skill_bridge import ensure_tenant_skills
+        await ensure_tenant_skills(tenant_id)
+    except Exception:
+        pass
 
     db_workflow = await workflow_db.get_workflow(workflow_id, tenant_id)
     if not db_workflow:

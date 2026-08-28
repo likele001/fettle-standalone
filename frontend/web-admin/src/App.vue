@@ -3,6 +3,13 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { useTenantStore } from '@/stores/tenantStore'
+
+onMounted(() => {
+  const tenantStore = useTenantStore()
+  tenantStore.loadFromStorage()
+})
 </script>
 
 <style lang="scss">

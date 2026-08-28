@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://site.fettle.cenkor.cn/sitemap.xml

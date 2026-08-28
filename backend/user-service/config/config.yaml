@@ -1,6 +1,6 @@
 app:
   name: "user-service"
-  port: 20002
+  port: 9200
   env: "development"
   log_level: "info"
   jwt_secret: ""

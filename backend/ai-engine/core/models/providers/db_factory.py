@@ -8,6 +8,7 @@ from .deepseek import DeepSeekProvider
 from .openai_provider import OpenAIProvider
 from .minimax_provider import MiniMaxProvider
 from .langchain_provider import LangChainProvider
+from config.settings import settings
 from ..db_config import TenantAPIKey
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,12 @@ class DBProviderFactory:
                 custom_headers = tenant_api_key.custom_headers
         elif api_key:
             final_api_key = api_key
+
+        # 全局 fallback：未配置租户 base_url 时，用 .env 的 {provider}_base_url（如 OPENAI_BASE_URL 指向本地网关）
+        if not base_url:
+            base_url = getattr(settings, f"{provider_code}_base_url", None)
+            if base_url:
+                logger.info(f"Using global .env base_url for provider={provider_code}: {base_url}")
         
         if not final_api_key:
             logger.warning(f"No API key available for provider: {provider_code}")
@@ -113,6 +120,12 @@ class DBProviderFactory:
                 base_url = tenant_api_key.custom_base_url
         elif api_key:
             final_api_key = api_key
+
+        # 全局 fallback：未配置租户 base_url 时，用 .env 的 {provider}_base_url（如 OPENAI_BASE_URL 指向本地网关）
+        if not base_url:
+            base_url = getattr(settings, f"{provider_code}_base_url", None)
+            if base_url:
+                logger.info(f"Using global .env base_url for provider={provider_code}: {base_url}")
         
         if not final_api_key:
             logger.warning(f"No API key available for LangChain provider: {langchain_type}")

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"ai-platform/shared/middleware"
@@ -64,6 +65,28 @@ func AdminAuth(secret string) gin.HandlerFunc {
 
 		c.Set("user_id", claims.UserID)
 		c.Set("role", claims.Role)
+		c.Next()
+	}
+}
+
+
+// InternalAuth 内部服务鉴权：优先 X-Internal-Token；未配置 token 时仅放行本机来源
+func InternalAuth() gin.HandlerFunc {
+	expected := os.Getenv("BILLING_INTERNAL_TOKEN")
+	return func(c *gin.Context) {
+		if expected != "" {
+			if c.GetHeader("X-Internal-Token") != expected {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": 1002, "message": "invalid internal token"})
+				return
+			}
+			c.Next()
+			return
+		}
+		ip := c.ClientIP()
+		if ip != "127.0.0.1" && ip != "::1" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 1003, "message": "internal endpoint: local only"})
+			return
+		}
 		c.Next()
 	}
 }

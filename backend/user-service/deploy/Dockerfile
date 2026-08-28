@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,8 @@ WORKDIR /app
 RUN apk --no-cache add ca-certificates
 
 COPY --from=builder /app/user-service/user-service /app/
+COPY --from=builder /app/user-service/config/config.yaml /app/config/
 
-EXPOSE 20002
+EXPOSE 9200
 
 CMD ["./user-service"]

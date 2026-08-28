@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -239,6 +242,42 @@ func (h *KnowledgeHandler) UploadDocument(c *gin.Context) {
 	}
 
 	h.kbService.UpdateDocumentStatus(doc.ID.String(), "uploaded")
+
+	// 触发 AI 引擎向量化（异步，不阻塞上传响应）
+	aiEngineURL := os.Getenv("AI_ENGINE_URL")
+	if aiEngineURL == "" {
+		aiEngineURL = "http://localhost:9700"
+	}
+	internalToken := os.Getenv("AI_ENGINE_INTERNAL_TOKEN")
+	if internalToken != "" && h.minioClient != nil {
+		go func() {
+			defer func() { _ = recover() }()
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel2()
+			presigned, err := h.minioClient.GetURL(ctx2, objectName, 24*time.Hour)
+			if err != nil {
+				return
+			}
+			payload, _ := json.Marshal(map[string]string{
+				"doc_id":            doc.ID.String(),
+				"file_url":          presigned,
+				"knowledge_base_id": kbID,
+				"tenant_id":         tenantID,
+				"file_name":         file.Filename,
+			})
+			req, err := http.NewRequest(http.MethodPost, strings.TrimRight(aiEngineURL, "/")+"/internal/vectorize", bytes.NewReader(payload))
+			if err != nil {
+				return
+			}
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Internal-Token", internalToken)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return
+			}
+			_ = resp.Body.Close()
+		}()
+	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": doc})
 }

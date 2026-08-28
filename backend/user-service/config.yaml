@@ -1,5 +1,5 @@
 server:
-  port: 20015
+  port: 9101
   mode: release
 
 jwt:

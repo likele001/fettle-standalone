@@ -21,6 +21,7 @@ export function getAuthHeader(): Record<string, string> {
 export function logout() {
   clearTokens()
   localStorage.removeItem('user_info')
+  localStorage.removeItem('current_tenant')
 }
 
 export function getUserInfo(): any {

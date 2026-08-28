@@ -72,7 +72,7 @@ func (c *AIEngineClient) RecognizeIntent(ctx context.Context, tenantID, userID, 
 	return resp.Intent, float64(resp.Confidence), nil
 }
 
-func (c *AIEngineClient) GenerateReply(ctx context.Context, tenantID, userID, input, agentID, conversationID string, history []map[string]string) (string, error) {
+func (c *AIEngineClient) GenerateReply(ctx context.Context, tenantID, userID, input, agentID, conversationID string, history []map[string]string, ctxMap map[string]string) (string, error) {
 	ctx, cancel := c.ctxWithTimeout(ctx)
 	defer cancel()
 
@@ -95,6 +95,7 @@ func (c *AIEngineClient) GenerateReply(ctx context.Context, tenantID, userID, in
 		AgentId:        agentID,
 		ConversationId: conversationID,
 		History:        protoHistory,
+		Context:        ctxMap,
 	})
 	if err != nil {
 		return "", fmt.Errorf("generate reply failed: %w", err)

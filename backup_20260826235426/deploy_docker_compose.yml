@@ -1,0 +1,244 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fettle-postgres
+    restart: unless-stopped
+    ports:
+      - "5432"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-standalone}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-standalone}
+      POSTGRES_DB: ${POSTGRES_DB:-standalone}
+    volumes:
+      - fettle_pg_data:/var/lib/postgresql/data
+      - ../../database/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-standalone} -d ${POSTGRES_DB:-standalone}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: fettle-redis
+    restart: unless-stopped
+    ports:
+      - "6379"
+    env_file:
+      - .env
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  user-service:
+    build:
+      context: ../..
+      dockerfile: backend/user-service/deploy/Dockerfile
+    container_name: fettle-user-service
+    restart: unless-stopped
+    ports:
+      - "20002:20002"
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=20002
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_NAME=${POSTGRES_DB:-standalone}
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=${JWT_SECRET:-change_me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: backend/gateway/deploy/Dockerfile
+    container_name: fettle-gateway
+    restart: unless-stopped
+    ports:
+      - "20001:20001"
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=20001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_NAME=${POSTGRES_DB:-standalone}
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - USER_SERVICE_ADDR=http://user-service:20002
+      - AGENT_SERVICE_ADDR=http://agent-service:20003
+      - CHAT_SERVICE_ADDR=http://chat-service:20004
+      - SKILL_SERVICE_ADDR=http://skill-service:20005
+      - BILLING_SERVICE_ADDR=http://billing-service:20006
+      - AI_ENGINE_ADDR=http://ai-engine:20007
+    depends_on:
+      - user-service
+
+  agent-service:
+    build:
+      context: ../..
+      dockerfile: backend/agent-service/deploy/Dockerfile
+    container_name: fettle-agent-service
+    restart: unless-stopped
+    ports:
+      - "20003:20003"
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=20003
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_NAME=${POSTGRES_DB:-standalone}
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - AI_ENGINE_GRPC_ADDR=ai-engine:20008
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: ../..
+      dockerfile: backend/chat-service/deploy/Dockerfile
+    container_name: fettle-chat-service
+    restart: unless-stopped
+    ports:
+      - "20004:20004"
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=20004
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_NAME=${POSTGRES_DB:-standalone}
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://host.docker.internal:27017}
+      - MONGODB_DATABASE=${MONGODB_DATABASE:-fettle_standalone}
+      - NATS_URL=${NATS_URL:-nats://host.docker.internal:4222}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  skill-service:
+    build:
+      context: ../..
+      dockerfile: backend/skill-service/deploy/Dockerfile
+    container_name: fettle-skill-service
+    restart: unless-stopped
+    ports:
+      - "20005:20005"
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=20005
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_NAME=${POSTGRES_DB:-standalone}
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-host.docker.internal:9000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  billing-service:
+    build:
+      context: ../..
+      dockerfile: backend/billing-service/deploy/Dockerfile
+    container_name: fettle-billing-service
+    restart: unless-stopped
+    ports:
+      - "20006:20006"
+    env_file:
+      - .env
+    environment:
+      - APP_PORT=20006
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_NAME=${POSTGRES_DB:-standalone}
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=${JWT_SECRET:-change_me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ai-engine:
+    build:
+      context: ../..
+      dockerfile: backend/ai-engine/deploy/Dockerfile
+    container_name: fettle-ai-engine
+    restart: unless-stopped
+    ports:
+      - "20007:20007"
+      - "20008:20008"
+    env_file:
+      - .env
+    environment:
+      - APP_HTTP_PORT=20007
+      - APP_GRPC_PORT=20008
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_NAME=${POSTGRES_DB:-standalone}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=${NATS_URL:-nats://host.docker.internal:4222}
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web-admin:
+    build:
+      context: ../..
+      dockerfile: frontend/web-admin/deploy/Dockerfile
+    container_name: fettle-web-admin
+    restart: unless-stopped
+    ports:
+      - "20009:20009"
+    depends_on:
+      - gateway
+
+volumes:
+  fettle_pg_data:

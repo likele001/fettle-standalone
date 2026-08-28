@@ -8,7 +8,6 @@ from core.workflow.node_types import WorkflowInstance
 from core.workflow.workflow_utils import dict_to_workflow
 from core.workflow.workflow_engine import workflow_engine
 from core.workflow.workflow_db import workflow_db
-from core.constants import DEFAULT_TENANT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ async def webhook_trigger(workflow_id: str, data: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="Workflow has no webhook trigger")
 
     workflow = dict_to_workflow(db_workflow)
-    tenant_id = db_workflow.get("tenant_id", DEFAULT_TENANT_ID)
+    tenant_id = db_workflow.get("tenant_id", "default")
 
     instance_data = await workflow_db.create_instance(
         workflow_id, tenant_id, "webhook", data

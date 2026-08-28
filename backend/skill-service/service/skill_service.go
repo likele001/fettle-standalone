@@ -93,6 +93,37 @@ func (s *SkillService) GetInstalledSkills(tenantID uuid.UUID) ([]models.SkillMar
 	return items, nil
 }
 
+// GetInstalledSkillsDetailed 返回租户已安装技能的完整信息（含 Code，供 ai-engine 执行桥接）
+func (s *SkillService) GetInstalledSkillsDetailed(tenantID uuid.UUID) ([]map[string]interface{}, error) {
+	installations, err := s.repo.ListInstallations(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var items []map[string]interface{}
+	for _, inst := range installations {
+		if inst.Status != "active" {
+			continue
+		}
+		skill, err := s.repo.GetByID(inst.SkillID)
+		if err != nil || skill == nil {
+			continue
+		}
+		items = append(items, map[string]interface{}{
+			"id":             skill.ID.String(),
+			"name":           skill.Name,
+			"description":    skill.Description,
+			"category":       skill.Category,
+			"version":        skill.Version,
+			"code":           skill.Code,
+			"is_mcp_tool":    skill.IsMCPTool,
+			"mcp_tool_name":  skill.MCPToolName,
+			"mcp_parameters": skill.MCPParameters,
+			"config":         skill.Config,
+		})
+	}
+	return items, nil
+}
+
 // UninstallSkill 卸载技能
 func (s *SkillService) UninstallSkill(tenantID, skillID uuid.UUID) error {
 	return s.repo.Uninstall(tenantID, skillID)

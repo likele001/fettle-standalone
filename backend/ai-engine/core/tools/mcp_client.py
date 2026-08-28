@@ -156,6 +156,127 @@ class MCPToolManager:
             results[server_id] = await client.health_check()
         return results
 
+    async def register_official_server(self, server_id: str, type_: str = "stdio", command: str = "",
+                                       args: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
+                                       url: str = "") -> bool:
+        """注册官方 MCP 服务器（stdio/SSE）。"""
+        try:
+            client = OfficialMCPClient(server_id, type_=type_, command=command, args=args, env=env, url=url)
+            if await client.health_check() == "healthy":
+                self.servers[server_id] = client
+                logger.info(f"Registered official MCP server: {server_id} type={type_}")
+                return True
+            await client.close()
+            return False
+        except Exception as e:
+            logger.error(f"Failed to register official MCP server: {e}")
+            return False
+
+
+
+class OfficialMCPClient:
+    """官方 MCP 协议客户端（stdio / SSE），兼容 Anthropic MCP 规范。
+
+    与自研 MCPClient 保持相同接口（describe/list_tools/execute/health_check/close），
+    可被 MCPToolManager 混用（server 字典按 protocol 区分）。
+    """
+
+    def __init__(self, server_id: str, type_: str = "stdio", command: str = "",
+                 args: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
+                 url: str = "", timeout: int = 60):
+        self.server_id = server_id
+        self.type = type_
+        self.command = command
+        self.args = args or []
+        self.env = env
+        self.url = url
+        self.timeout = timeout
+        self._session = None
+        self._stack = None
+
+    async def _ensure_connected(self):
+        if self._session is not None:
+            return
+        from contextlib import AsyncExitStack
+        from mcp import ClientSession
+        stack = AsyncExitStack()
+        if self.type == "sse":
+            from mcp.client.sse import sse_client
+            read, write = await stack.enter_async_context(sse_client(self.url))
+        else:
+            from mcp import StdioServerParameters
+            from mcp.client.stdio import stdio_client
+            params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
+            read, write = await stack.enter_async_context(stdio_client(params))
+        session = await stack.enter_async_context(ClientSession(read, write))
+        await session.initialize()
+        self._session = session
+        self._stack = stack
+
+    async def describe(self) -> Optional[dict]:
+        """兼容接口：返回服务器信息（官方协议无统一 describe，返回 tool 列表摘要）"""
+        try:
+            tools = await self.list_tools()
+            return {"name": self.server_id, "version": "1.0", "description": "", "tools": tools, "url": self.url or self.command}
+        except Exception as e:
+            logger.error(f"official MCP describe failed: {e}")
+            return None
+
+    async def list_tools(self) -> List[Dict[str, Any]]:
+        await self._ensure_connected()
+        res = await self._session.list_tools()
+        tools = []
+        for t in res.tools:
+            schema = getattr(t, "inputSchema", None) or {}
+            tools.append({
+                "name": t.name,
+                "description": t.description or "",
+                "inputSchema": schema,
+                "protocol": "mcp-official",
+            })
+        return tools
+
+    async def get_tool(self, tool_name: str) -> Optional[Dict[str, Any]]:
+        for t in await self.list_tools():
+            if t.get("name") == tool_name:
+                return t
+        return None
+
+    async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        await self._ensure_connected()
+        try:
+            res = await self._session.call_tool(tool_name, arguments or {})
+            contents = []
+            for c in (res.content or []):
+                text = getattr(c, "text", None)
+                contents.append(text if text is not None else str(c))
+            return {
+                "status": "success",
+                "content": "\n".join(contents),
+                "is_error": bool(getattr(res, "isError", False)),
+            }
+        except Exception as e:
+            logger.error(f"official MCP execute failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    async def health_check(self) -> str:
+        try:
+            await self._ensure_connected()
+            return "healthy"
+        except Exception as e:
+            logger.warning(f"official MCP health check failed: {e}")
+            return "unhealthy"
+
+    async def close(self):
+        if self._stack is not None:
+            try:
+                await self._stack.aclose()
+            except Exception:
+                pass
+            self._stack = None
+            self._session = None
+
+
 
 # 全局 MCP 工具管理器
 mcp_tool_manager = MCPToolManager()

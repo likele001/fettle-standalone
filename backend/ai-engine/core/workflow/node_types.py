@@ -14,6 +14,7 @@ class NodeType(str, Enum):
     WEBHOOK = "webhook"
     INPUT = "input"
     START = "start"
+    AGENT = "agent"
     END = "end"
 
 
@@ -80,6 +81,15 @@ class CronNodeConfig(NodeConfig):
 class WebhookNodeConfig(NodeConfig):
     path: str = ""
     secret: str = ""
+
+
+@dataclass
+class AgentNodeConfig(NodeConfig):
+    """AGENT 节点：调用子 Agent 对话（多 Agent 协作）"""
+    agent_id: str = ""
+    input_template: str = "{input}"
+    output_key: str = "agent_reply"
+    timeout: int = 60
 
 
 @dataclass

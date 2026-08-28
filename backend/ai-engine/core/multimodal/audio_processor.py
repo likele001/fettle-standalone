@@ -45,15 +45,14 @@ class AudioProcessor:
             return {"success": False, "error": str(e)}
 
     async def _transcribe(self, audio_path: str) -> str:
-        """转录音频为文本"""
+        """转录音频为文本（faster-whisper，CPU int8 友好）"""
         try:
-            import whisper
-            
-            model = whisper.load_model("base")
-            result = model.transcribe(audio_path)
-            return result.get("text", "")
+            from faster_whisper import WhisperModel
+            model = WhisperModel("base", device="cpu", compute_type="int8")
+            segments, _info = model.transcribe(audio_path, vad_filter=True)
+            return "".join(seg.text for seg in segments).strip()
         except ImportError:
-            logger.warning("whisper not installed, skipping transcription")
+            logger.warning("faster-whisper not installed, skipping transcription")
             return ""
         except Exception as e:
             logger.error(f"Audio transcription failed: {e}")

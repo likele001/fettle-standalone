@@ -159,3 +159,15 @@ func (s *PermissionService) GetUserRole(tenantID, userID string) (*models.Role, 
 
 	return &role, nil
 }
+
+// DeleteRole 删除角色（不可删除内置角色）
+func (s *PermissionService) DeleteRole(tenantID, roleID string) error {
+	var role models.Role
+	if err := s.db.Where("id = ? AND tenant_id = ?", roleID, tenantID).First(&role).Error; err != nil {
+		return err
+	}
+	if role.Code == "super_admin" || role.Code == "admin" || role.Code == "operator" || role.Code == "member" {
+		return errors.New("不能删除系统内置角色")
+	}
+	return s.db.Where("id = ?", roleID).Delete(&models.Role{}).Error
+}

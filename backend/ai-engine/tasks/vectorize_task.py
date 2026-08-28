@@ -46,7 +46,30 @@ def vectorize_document(self, doc_id: str, file_path: str, knowledge_base_id: str
         )
         
         logger.info(f"Stored {stored_count} chunks to Milvus")
-        
+
+        # 5. 更新文档状态（向量化成功）
+        try:
+            import asyncio
+            import asyncpg
+            from config.settings import settings as _s
+
+            async def _update_doc_status():
+                conn = await asyncpg.connect(
+                    host=_s.db_host, port=_s.db_port,
+                    user=_s.db_user, password=_s.db_password,
+                    database=_s.db_name,
+                )
+                await conn.execute(
+                    "UPDATE knowledge_documents SET status='processed', chunk_count=$1 WHERE id=$2",
+                    len(chunks), doc_id,
+                )
+                await conn.close()
+
+            asyncio.run(_update_doc_status())
+            logger.info(f"Updated doc status to processed: {doc_id} chunks={len(chunks)}")
+        except Exception as _e:
+            logger.error(f"Failed to update doc status: {_e}")
+
         return {
             "status": "success",
             "doc_id": doc_id,
@@ -98,7 +121,7 @@ def store_to_milvus(
 ) -> int:
     """存储到 Milvus"""
     try:
-        from pymilvus import Collection, connections
+        from pymilvus import Collection, connections, utility
         
         # 连接 Milvus
         connections.connect(host="localhost", port="19530")
@@ -106,7 +129,7 @@ def store_to_milvus(
         # 获取或创建 collection
         collection_name = f"kb_{knowledge_base_id.replace('-', '_')}"
         
-        if not Collection.exists(collection_name):
+        if not utility.has_collection(collection_name):
             from pymilvus import FieldSchema, CollectionSchema, DataType
             
             fields = [
@@ -155,12 +178,12 @@ def store_to_milvus(
 def delete_document_vectors(self, knowledge_base_id: str, doc_id: str):
     """删除文档向量"""
     try:
-        from pymilvus import Collection, connections
+        from pymilvus import Collection, connections, utility
         
         connections.connect(host="localhost", port="19530")
         
         collection_name = f"kb_{knowledge_base_id.replace('-', '_')}"
-        if Collection.exists(collection_name):
+        if utility.has_collection(collection_name):
             collection = Collection(collection_name)
             expr = f'doc_id == "{doc_id}"'
             collection.delete(expr)

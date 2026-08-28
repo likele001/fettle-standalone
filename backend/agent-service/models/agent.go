@@ -117,6 +117,5 @@ func AutoMigrate(db *gorm.DB) error {
 		&Agent{},
 		&KnowledgeBase{},
 		&KnowledgeDocument{},
-		&IndustryBundle{},
 	)
 }

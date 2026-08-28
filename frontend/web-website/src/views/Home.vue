@@ -10,26 +10,26 @@
         <div class="hero-content">
           <div class="hero-badge">
             <span class="badge-dot"></span>
-            企业级 AI 智能对话平台
+            辰科 · 企业级 AI 智能体平台
           </div>
           <h1>
             用 <span class="gradient-text">AI 智能体</span><br>
             重新定义企业对话
           </h1>
           <p class="hero-desc">
-            多租户、多模型、多渠道的一站式智能对话解决方案。<br>
+            多租户 SaaS 云服务 &amp; 单机私有部署，满足不同规模企业需求。<br>
             支持通义千问、DeepSeek 等主流大模型，开箱即用。
           </p>
           <div class="hero-actions">
-            <a href="#" class="btn btn-primary btn-large">
-              免费试用
+            <router-link to="/pricing" class="btn btn-primary btn-large">
+              查看方案
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
                 <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
-            </a>
+            </router-link>
             <router-link to="/docs/deploy" class="btn btn-secondary btn-large">
-              查看文档
+              快速部署
             </router-link>
           </div>
         </div>
@@ -105,9 +105,9 @@
     <section class="section section-alt">
       <div class="container">
         <SectionTitle
-          tag="技术架构"
+           tag="技术架构"
           title="微服务架构，灵活可扩展"
-          description="6 个独立微服务，每个服务可独立部署和扩展，满足企业级高可用需求"
+          description="7 个独立 Go 微服务 + Python AI 引擎，每个服务可独立部署和扩展，满足企业级高可用需求"
           :center="true"
         />
         <div class="arch-grid">
@@ -143,6 +143,60 @@
       </div>
     </section>
 
+    <!-- Version Comparison -->
+    <section class="section section-alt">
+      <div class="container">
+        <SectionTitle
+          tag="版本对比"
+          title="SaaS 云服务 vs 私有部署"
+          description="根据您的需求选择最合适的部署方式"
+          :center="true"
+        />
+        <div class="version-grid">
+          <div class="version-card">
+            <div class="version-header" style="background: linear-gradient(135deg, #3b82f6, #2563eb)">
+              <div class="version-icon">☁️</div>
+              <h3>SaaS 云服务</h3>
+              <p class="version-subtitle">多租户 · 即开即用</p>
+            </div>
+            <div class="version-body">
+              <ul>
+                <li>免运维，注册即用</li>
+                <li>多租户数据隔离</li>
+                <li>自动升级维护</li>
+                <li>弹性扩展</li>
+                <li>微信/支付宝支付</li>
+                <li>专属客服支持</li>
+              </ul>
+              <router-link to="/pricing" class="version-btn" style="background: #3b82f6">
+                查看方案
+              </router-link>
+            </div>
+          </div>
+          <div class="version-card featured">
+            <div class="version-header" style="background: linear-gradient(135deg, #10b981, #059669)">
+              <div class="version-icon">🏠</div>
+              <h3>私有部署版</h3>
+              <p class="version-subtitle">单租户 · 数据自主可控</p>
+            </div>
+            <div class="version-body">
+              <ul>
+                <li>数据 100% 私有化</li>
+                <li>Docker Compose 一键部署</li>
+                <li>无需公网，内网可用</li>
+                <li>全功能无阉割</li>
+                <li>无限对话/智能体</li>
+                <li>社区 + 邮件支持</li>
+              </ul>
+              <router-link to="/docs/deploy" class="version-btn" style="background: #10b981">
+                查看部署文档
+              </router-link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Scenarios Section -->
     <section class="section">
       <div class="container">
@@ -173,10 +227,10 @@
         <div class="cta-content">
           <ScrollReveal>
             <h2>准备好开启 AI 智能对话了吗？</h2>
-            <p>立即体验企业级 AI 智能体平台，让您的业务更智能、更高效</p>
+            <p>选择 SaaS 云服务即开即用，或私有部署数据自主可控</p>
             <div class="cta-actions">
-              <a href="#" class="btn btn-primary btn-large">免费开始</a>
-              <router-link to="/docs/guide" class="btn btn-secondary btn-large">查看使用指南</router-link>
+              <router-link to="/pricing" class="btn btn-primary btn-large">查看方案</router-link>
+              <router-link to="/docs/deploy" class="btn btn-secondary btn-large">私有部署</router-link>
             </div>
           </ScrollReveal>
         </div>
@@ -186,23 +240,31 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '@unhead/vue'
 import SectionTitle from '@/components/SectionTitle.vue'
 import FeatureCard from '@/components/FeatureCard.vue'
 import ScrollReveal from '@/components/ScrollReveal.vue'
 import CounterUp from '@/components/CounterUp.vue'
 
+useHead({
+  title: '辰科 fettle - 企业级 AI 智能体平台 | SaaS + 私有部署',
+  meta: [
+    { name: 'description', content: '辰科 fettle 企业级 AI 智能体平台，多租户 SaaS 与私有部署双版本。支持智能体管理、知识库 RAG、AI 工作流、微信公众号/企微/飞书/钉钉/抖音多渠道接入。' }
+  ]
+})
+
 const stats = [
-  { value: 6, label: '微服务', suffix: '' },
+  { value: 7, label: 'Go 微服务', suffix: '' },
   { value: 10, label: '支持模型', suffix: '+' },
-  { value: 99, label: '可用性 %', suffix: '.9' },
-  { value: 50, label: '响应速度 ms', suffix: '' }
+  { value: 7, label: '多渠道接入', suffix: '' },
+  { value: 99, label: '可用性 %', suffix: '.9' }
 ]
 
 const features = [
   {
     icon: '🤖',
     title: '智能体管理',
-    description: '创建、配置和管理多个 AI 智能体，支持个性化人设和工作流',
+    description: '创建、配置和管理多个 AI 智能体，支持个性化人设和 AI 自动化工作流',
     features: ['多智能体并行', '个性化人设', '工作流编排'],
     color: '#3b82f6'
   },
@@ -215,9 +277,9 @@ const features = [
   },
   {
     icon: '⚡',
-    title: '技能市场',
-    description: '内置丰富技能，支持自定义技能扩展，让智能体更强大',
-    features: ['内置技能', '自定义扩展', '热插拔'],
+    title: 'AI 工作流',
+    description: '可视化编排 AI 自动化任务，支持定时触发和 Webhook 调用',
+    features: ['可视化编辑', 'Cron 定时', 'Webhook 触发'],
     color: '#f59e0b'
   },
   {
@@ -230,8 +292,8 @@ const features = [
   {
     icon: '🔗',
     title: '多渠道接入',
-    description: '支持网页、微信、API 等多种接入方式，一处配置多处使用',
-    features: ['网页嵌入', '微信接入', 'REST API'],
+    description: '支持微信公众号/企微/飞书/钉钉/抖音等多种渠道接入',
+    features: ['微信公众号', '企业微信', '飞书/钉钉'],
     color: '#ec4899'
   },
   {
@@ -244,13 +306,13 @@ const features = [
 ]
 
 const services = [
-  { name: 'Gateway', port: 20001, icon: '🌐', color: '#3b82f6', desc: '统一入口，路由分发' },
-  { name: 'User Service', port: 20002, icon: '👤', color: '#10b981', desc: '用户认证，租户管理' },
-  { name: 'Agent Service', port: 20003, icon: '🤖', color: '#8b5cf6', desc: '智能体，知识库管理' },
-  { name: 'Chat Service', port: 20004, icon: '💬', color: '#f59e0b', desc: '对话管理，消息处理' },
-  { name: 'Skill Service', port: 20005, icon: '⚡', color: '#ec4899', desc: '技能管理，安装卸载' },
-  { name: 'Billing Service', port: 20006, icon: '💰', color: '#06b6d4', desc: '计费管理，订阅套餐' },
-  { name: 'AI Engine', port: 20007, icon: '🧠', color: '#ef4444', desc: 'AI 模型调用，流式生成' }
+  { name: 'Gateway', port: 9100, icon: '🌐', color: '#3b82f6', desc: '统一入口，路由分发' },
+  { name: 'User Service', port: 9200, icon: '👤', color: '#10b981', desc: '用户认证，租户管理' },
+  { name: 'Agent Service', port: 9300, icon: '🤖', color: '#8b5cf6', desc: '智能体，知识库管理' },
+  { name: 'Chat Service', port: 9400, icon: '💬', color: '#f59e0b', desc: '对话管理，消息处理' },
+  { name: 'Skill Service', port: 9500, icon: '⚡', color: '#ec4899', desc: '技能管理，安装卸载' },
+  { name: 'Billing Service', port: 9600, icon: '💰', color: '#06b6d4', desc: '计费管理，订阅套餐' },
+  { name: 'AI Engine', port: 9700, icon: '🧠', color: '#ef4444', desc: 'AI 模型调用，流式生成' }
 ]
 
 const techStack = [
@@ -639,6 +701,102 @@ const scenarios = [
   span {
     font-size: 0.8rem;
     color: $text-muted;
+  }
+}
+
+// Version Comparison
+.version-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $spacing-2xl;
+  max-width: 900px;
+  margin: 0 auto;
+
+  @include mobile {
+    grid-template-columns: 1fr;
+  }
+}
+
+.version-card {
+  border-radius: $radius-xl;
+  overflow: hidden;
+  border: 1px solid $border-light;
+  transition: all $transition-normal;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: $shadow-lg;
+  }
+
+  &.featured {
+    border-color: $success;
+    box-shadow: 0 0 0 1px $success, $shadow-md;
+  }
+}
+
+.version-header {
+  padding: $spacing-xl;
+  color: white;
+  text-align: center;
+
+  .version-icon {
+    font-size: 48px;
+    margin-bottom: $spacing-md;
+  }
+
+  h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: $spacing-xs;
+    color: white;
+  }
+
+  .version-subtitle {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin: 0;
+  }
+}
+
+.version-body {
+  padding: $spacing-xl;
+  background: $bg-white;
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 $spacing-xl;
+
+    li {
+      padding: $spacing-sm 0;
+      color: $text-secondary;
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+
+      &::before {
+        content: '✓';
+        color: $success;
+        font-weight: 700;
+      }
+    }
+  }
+}
+
+.version-btn {
+  display: block;
+  text-align: center;
+  padding: 12px 24px;
+  color: white;
+  border-radius: $radius-md;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all $transition-fast;
+
+  &:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: $shadow-md;
   }
 }
 

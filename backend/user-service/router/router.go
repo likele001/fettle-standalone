@@ -44,6 +44,8 @@ func NewRouter(db *gorm.DB, redisClient *cache.RedisClient, jwtSecret string) *g
 	aiConfigService := service.NewAIConfigService(providerRepo, modelRepo, tenantConfigRepo, tenantKeyRepo, usageLogRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
+	ssoService := service.NewSSOService(db, authService)
+	ssoHandler := handler.NewSSOHandler(ssoService)
 	adminAuthHandler := handler.NewAdminAuthHandler(adminAuthService)
 	userHandler := handler.NewUserHandler(userService)
 	tenantHandler := handler.NewTenantHandler(tenantService)
@@ -104,6 +106,10 @@ func NewRouter(db *gorm.DB, redisClient *cache.RedisClient, jwtSecret string) *g
 		public.POST("/login", authHandler.Login)
 		public.POST("/refresh", authHandler.RefreshToken)
 		public.POST("/logout", authHandler.Logout)
+
+		// SSO OIDC 登录
+		public.GET("/sso/authorize", ssoHandler.Authorize)
+		public.GET("/sso/callback", ssoHandler.Callback)
 	}
 
 	// 公开路由 - 超级管理员认证
@@ -163,6 +169,7 @@ func NewRouter(db *gorm.DB, redisClient *cache.RedisClient, jwtSecret string) *g
 			roles.GET("", permHandler.ListRoles)
 			roles.POST("", permHandler.CreateRole)
 			roles.POST("/:id/permissions", permHandler.AssignPermissions)
+		roles.DELETE("/:id", permHandler.DeleteRole)
 			roles.GET("/:id/permissions", permHandler.GetRolePermissions)
 		}
 
@@ -194,6 +201,8 @@ func NewRouter(db *gorm.DB, redisClient *cache.RedisClient, jwtSecret string) *g
 	admin := r.Group("/admin")
 	admin.Use(middleware.JWTAuthMiddleware(jwtSecret))
 	admin.Use(adminAuth)
+	// P2-2 管理操作审计：记录 admin 写操作到 admin_audit_log
+	admin.Use(middleware.AuditMiddleware(db))
 	{
 		admin.GET("/tenants", tenantHandler.ListTenants)
 		admin.GET("/tenants/:id", tenantHandler.GetTenantDetail)

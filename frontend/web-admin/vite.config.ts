@@ -12,11 +12,11 @@ export default defineConfig(({ mode }) => {
       }
     },
     server: {
-      port: 20009,
+      port: 9800,
       host: '0.0.0.0',
       proxy: {
         '/api': {
-          target: 'http://localhost:20001',
+          target: 'http://localhost:9100',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '/api/v1')
         }

@@ -2,6 +2,10 @@ package repository
 
 import (
 	"ai-platform/chat-service/models"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +36,21 @@ func (r *ConversationRepository) GetByID(tenantID, convID string) (*models.Conve
 	var conv models.Conversation
 	err := r.db.Where("id = ? AND tenant_id = ?", cID, tID).First(&conv).Error
 	return &conv, err
+}
+
+
+// GetByChannel 按渠道+客户标识查会话（渠道入站幂等）
+func (r *ConversationRepository) GetByChannel(tenantID uuid.UUID, channel, channelID string) (*models.Conversation, error) {
+	var conv models.Conversation
+	err := r.db.Where("tenant_id = ? AND channel = ? AND channel_id = ?", tenantID, channel, channelID).
+		Order("updated_at DESC").First(&conv).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &conv, nil
 }
 
 func (r *ConversationRepository) ListByTenant(tenantID string, status string, page, pageSize int) ([]models.Conversation, int64, error) {
@@ -197,6 +216,70 @@ func (r *ConversationRepository) GetTenantPlanType(tenantID uuid.UUID) string {
 		return "free"
 	}
 	return planType
+}
+
+// GetAgentWorkflowID 返回指定智能体绑定的工作流ID。
+// 若智能体不存在或未配置工作流，返回空字符串。
+func (r *ConversationRepository) GetAgentWorkflowID(tenantID, agentID string) string {
+	if agentID == "" {
+		return ""
+	}
+	var workflowID string
+	err := r.db.Table("agents").
+		Select("workflow_id").
+		Where("id = ? AND tenant_id = ?", agentID, tenantID).
+		Scan(&workflowID).Error
+	if err != nil || workflowID == "" {
+		return ""
+	}
+	return workflowID
+}
+
+// GetAgentRAGConfig 返回指定智能体绑定的知识库 ID 列表与人设提示词（system_prompt）。
+// 从 agents 表读 knowledge_base_ids（jsonb）与 personality_config（jsonb）。
+func (r *ConversationRepository) GetAgentRAGConfig(tenantID, agentID string) (kbIDs []string, persona string) {
+	if agentID == "" {
+		return nil, ""
+	}
+	var kbJSON, personaJSON string
+	err := r.db.Table("agents").
+		Select("knowledge_base_ids").
+		Where("id = ? AND tenant_id = ?", agentID, tenantID).
+		Scan(&kbJSON).Error
+	if err != nil {
+	}
+	if err == nil && kbJSON != "" {
+		_ = json.Unmarshal([]byte(kbJSON), &kbIDs)
+	}
+	err = r.db.Table("agents").
+		Select("personality_config").
+		Where("id = ? AND tenant_id = ?", agentID, tenantID).
+		Scan(&personaJSON).Error
+	if err != nil {
+	}
+	if err == nil && personaJSON != "" {
+		persona = buildPersonaPrompt(personaJSON)
+	}
+	return kbIDs, persona
+}
+
+// buildPersonaPrompt 把 personality_config JSON 转成中文人设提示词
+func buildPersonaPrompt(raw string) string {
+	var cfg map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	if role, _ := cfg["role"].(string); role != "" {
+		parts = append(parts, fmt.Sprintf("你是%s", role))
+	}
+	if tone, _ := cfg["tone"].(string); tone != "" {
+		parts = append(parts, fmt.Sprintf("语气%s", tone))
+	}
+	if lang, _ := cfg["language"].(string); lang != "" {
+		parts = append(parts, fmt.Sprintf("使用%s回答", lang))
+	}
+	return strings.Join(parts, "，")
 }
 
 type MessageRepository struct {

@@ -10,6 +10,7 @@ from core.models.model_router import model_router, TaskType
 from core.models.db_model_router import db_model_router
 from core.models.providers import ProviderFactory, ChatMessage
 from core.rag.knowledge_retriever import KnowledgeRetriever
+from core.memory.customer_memory import customer_memory
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +215,56 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             
             # 添加当前输入
             messages.append(ChatMessage(role="user", content=request.input))
+
+            # 人设约束：从 context 取 system_prompt，作为第一条 system 消息
+            try:
+                sys_prompt = (request.context or {}).get('system_prompt', '')
+                if sys_prompt:
+                    messages.insert(0, ChatMessage(role="system", content=sys_prompt))
+                    logger.info(f"Persona injected: {sys_prompt[:50]}")
+            except Exception as e:
+                logger.error(f"Persona injection failed: {e}")
+
+            # 客户记忆注入：跨会话记住客户
+            try:
+                mem = await customer_memory.get_memory(request.tenant_id, request.user_id)
+                if mem:
+                    messages.insert(0, ChatMessage(
+                        role="system",
+                        content=f"以下是该客户的历史记忆（跨会话），请据此提供更贴心、更有连贯性的服务：\n{mem}"
+                    ))
+                    logger.info(f"Customer memory injected: {len(mem)} chars")
+                else:
+                    mem = ""
+            except Exception as e:
+                logger.error(f"Customer memory injection failed: {e}")
+                mem = ""
+
+            # 知识库检索（RAG）：从 context 取 knowledge_base_id，检索结果以 system 消息注入
+            try:
+                req_ctx = request.context or {}
+                kb_id = req_ctx.get('knowledge_base_id', '')
+                if kb_id:
+                    chunks = await self.knowledge_retriever.retrieve(
+                        knowledge_base_id=kb_id,
+                        query=request.input,
+                        tenant_id=request.tenant_id,
+                    )
+                    if chunks:
+                        context_parts = [
+                            f"[片段{i}] (相关度: {c.get('score', 0):.2f})\n{c.get('content', '')}"
+                            for i, c in enumerate(chunks, 1)
+                        ]
+                        context_text = "\n\n---\n\n".join(context_parts)
+                        messages.insert(0, ChatMessage(
+                            role="system",
+                            content=f"以下是知识库检索到的相关资料，请优先基于这些资料回答用户问题，不要编造知识库没有的内容：\n\n{context_text}"
+                        ))
+                        logger.info(f"RAG: injected {len(chunks)} chunks from kb={kb_id}")
+                    else:
+                        logger.warning(f"RAG: no chunks retrieved for kb={kb_id}")
+            except Exception as e:
+                logger.error(f"RAG injection failed: {e}")
             
             # 调用模型
             response = await provider.chat(
@@ -224,7 +275,18 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             )
             
             latency_ms = (time.time() - start_time) * 1000
-            
+
+            # 异步更新客户摘要记忆（不阻塞回复）
+            try:
+                import asyncio
+                mem_msgs = [{"role": m.role, "content": m.content} for m in request.history]
+                mem_msgs.append({"role": "user", "content": request.input})
+                mem_msgs.append({"role": "assistant", "content": response.content})
+                asyncio.create_task(customer_memory.update_memory(
+                    request.tenant_id, request.user_id, mem_msgs, mem or ""))
+            except Exception as e:
+                logger.error(f"customer memory update schedule failed: {e}")
+
             return ai_engine_pb2.ReplyResponse(
                 reply=response.content,
                 model_used=response.model,
@@ -275,9 +337,33 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
             for msg in request.history:
                 messages.append(ChatMessage(role=msg.role, content=msg.content))
             messages.append(ChatMessage(role="user", content=request.input))
-            
+
+            # 人设约束（StreamReply 同步补上）
+            try:
+                sys_prompt = (request.context or {}).get('system_prompt', '')
+                if sys_prompt:
+                    messages.insert(0, ChatMessage(role="system", content=sys_prompt))
+            except Exception as e:
+                logger.error(f"Stream persona injection failed: {e}")
+
+            # 客户记忆注入
+            try:
+                mem = await customer_memory.get_memory(request.tenant_id, request.user_id)
+                if mem:
+                    messages.insert(0, ChatMessage(
+                        role="system",
+                        content=f"以下是该客户的历史记忆（跨会话），请据此提供更贴心、更有连贯性的服务：\n{mem}"
+                    ))
+                    logger.info(f"Stream customer memory injected: {len(mem)} chars")
+                else:
+                    mem = ""
+            except Exception as e:
+                logger.error(f"Stream customer memory injection failed: {e}")
+                mem = ""
+
             # 流式调用
             tokens_used = 0
+            full_reply = ""
             async for chunk in provider.stream_chat(
                 messages=messages,
                 model=model_name,
@@ -285,6 +371,7 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
                 temperature=0.7
             ):
                 tokens_used += 1  # 简化计算
+                full_reply += chunk
                 yield ai_engine_pb2.StreamResponse(
                     chunk=chunk,
                     is_final=False,
@@ -292,6 +379,17 @@ class AIEngineServicer(ai_engine_pb2_grpc.AIEngineServicer):
                     tokens_used=tokens_used
                 )
             
+            # 异步更新客户摘要记忆
+            try:
+                import asyncio
+                mem_msgs = [{"role": m.role, "content": m.content} for m in request.history]
+                mem_msgs.append({"role": "user", "content": request.input})
+                mem_msgs.append({"role": "assistant", "content": full_reply})
+                asyncio.create_task(customer_memory.update_memory(
+                    request.tenant_id, request.user_id, mem_msgs, mem or ""))
+            except Exception as e:
+                logger.error(f"stream customer memory update schedule failed: {e}")
+
             # 最终响应
             yield ai_engine_pb2.StreamResponse(
                 chunk="",

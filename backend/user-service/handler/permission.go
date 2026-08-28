@@ -134,6 +134,7 @@ func (h *PermissionHandler) GetMyPermissions(c *gin.Context) {
 		return
 	}
 
+	// super_admin has all permissions
 	if roleStr == "super_admin" {
 		perms, _ := h.permService.GetAllPermissions()
 		codes := make([]string, len(perms))
@@ -150,4 +151,15 @@ func (h *PermissionHandler) GetMyPermissions(c *gin.Context) {
 	codes := make([]string, len(perms))
 	for i, p := range perms { codes[i] = p.Code }
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": codes})
+}
+
+// DeleteRole 删除角色
+func (h *PermissionHandler) DeleteRole(c *gin.Context) {
+	roleID := c.Param("id")
+	tenantID, _ := middleware.GetTenantID(c)
+	if err := h.permService.DeleteRole(tenantID, roleID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 5000, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success"})
 }

@@ -79,6 +79,12 @@ embeddings:
     dimension: 1536
     cost_per_1k_tokens: 0.0001
 
+  qwen3-embed:
+    provider: openai
+    model_name: Qwen/Qwen3-Embedding-0.6B
+    dimension: 1024
+    cost_per_1k_tokens: 0.0001
+
 # 模型路由策略
 routing:
   # 默认策略

@@ -8,13 +8,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
 
 type HTTPClient struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL       string
+	httpClient    *http.Client
+	internalToken string
 }
 
 func NewHTTPClient(baseURL string) *HTTPClient {
@@ -23,6 +25,7 @@ func NewHTTPClient(baseURL string) *HTTPClient {
 		httpClient: &http.Client{
 			Timeout: 300 * time.Second,
 		},
+		internalToken: os.Getenv("AI_ENGINE_INTERNAL_TOKEN"),
 	}
 }
 
@@ -74,6 +77,9 @@ func (c *HTTPClient) GenerateReply(ctx context.Context, req GenerateReplyRequest
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if c.internalToken != "" {
+		httpReq.Header.Set("X-Internal-Token", c.internalToken)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -116,6 +122,9 @@ func (c *HTTPClient) StreamReply(ctx context.Context, req GenerateReplyRequest) 
 	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Cache-Control", "no-cache")
 	httpReq.Header.Set("Connection", "keep-alive")
+	if c.internalToken != "" {
+		httpReq.Header.Set("X-Internal-Token", c.internalToken)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

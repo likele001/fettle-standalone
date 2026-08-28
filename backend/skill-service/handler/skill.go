@@ -333,3 +333,24 @@ func (h *SkillHandler) UpdateSkillConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "config updated"})
 }
+
+
+// InternalInstalledSkills 内部服务查询已安装技能（无 JWT，query 传 tenant_id，供 ai-engine 桥接）
+func (h *SkillHandler) InternalInstalledSkills(c *gin.Context) {
+	tenantID := c.Query("tenant_id")
+	if tenantID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "tenant_id required"})
+		return
+	}
+	tenantUUID, err := uuid.Parse(tenantID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "invalid tenant_id"})
+		return
+	}
+	items, err := h.service.GetInstalledSkillsDetailed(tenantUUID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 5000, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}

@@ -2,6 +2,9 @@
   <div class="settings">
     <div class="page-header">
       <h2>系统设置</h2>
+        <el-tag size="small" type="warning" v-if="currentTenant?.code" style="margin-left:16px">
+          租户编码：{{ currentTenant.code }}
+        </el-tag>
     </div>
 
     <el-tabs v-model="activeTab">
@@ -117,8 +120,17 @@
                 />
               </el-form-item>
               <el-form-item label="白标模式">
-                <el-switch v-model="brandingForm.white_label_enabled" />
-                <span class="form-note">启用后隐藏平台品牌信息</span>
+                <el-tooltip
+                  :content="!isEnterprise ? '仅企业版套餐可用' : ''"
+                  placement="top"
+                  :disabled="isEnterprise"
+                >
+                  <el-switch
+                    v-model="brandingForm.white_label_enabled"
+                    :disabled="!isEnterprise"
+                  />
+                </el-tooltip>
+                <span class="form-note">仅企业版可用</span>
               </el-form-item>
               <el-form-item>
                 <el-button
@@ -275,7 +287,11 @@ import type { BrandingConfig } from '@/api/branding'
 import type { TeamMember } from '@/api/team'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '@/api/request'
+import { useTenantStore } from '@/stores/tenantStore'
+
 const userStore = useUserStore()
+const tenantStore = useTenantStore()
+const currentTenant = computed(() => tenantStore.currentTenant)
 const activeTab = ref('team')
 
 interface Plan {
@@ -320,6 +336,9 @@ const brandingForm = reactive<BrandingConfig>({
   white_label_enabled: false
 })
 const brandingSaving = ref(false)
+const tenantPlan = ref('')
+
+const isEnterprise = computed(() => tenantPlan.value === 'enterprise')
 
 async function loadBranding() {
   try {
@@ -327,6 +346,15 @@ async function loadBranding() {
     Object.assign(brandingForm, data)
   } catch {
     // 首次可能没有配置，使用默认值
+  }
+}
+
+async function loadTenantPlan() {
+  try {
+    const data = await request.get('/tenant/current') as any
+    tenantPlan.value = data?.plan_type || ''
+  } catch {
+    tenantPlan.value = ''
   }
 }
 
@@ -494,6 +522,7 @@ const loadTeamMembers = async () => {
 onMounted(() => {
   loadTeamMembers()
   loadBranding()
+  loadTenantPlan()
 })
 </script>
 
