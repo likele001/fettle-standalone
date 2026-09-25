@@ -96,3 +96,16 @@ backup_main_*/
 scripts_backup/
 fix_permission.py
 fix_build.py
+
+# === Secrets (never commit) ===
+.env.bak
+.env.*.bak
+*.env
+backup_*/
+scripts_backup/
+*.bak
+*.bak_*
+*.bak.*
+
+# === 编译产物（本地构建生成，不入库）===
+bin/

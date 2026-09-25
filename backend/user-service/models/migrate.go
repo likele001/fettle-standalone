@@ -1,8 +1,11 @@
 package models
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -113,8 +116,17 @@ func SeedData(db *gorm.DB) error {
 	var superAdmin AdminUser
 	if err := db.Where("role = ?", "super_admin").First(&superAdmin).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// 生成 bcrypt 密码哈希
-			defaultPassword := "CHANGE_ME_ADMIN_PASSWORD"
+			// 初始口令：优先取 SUPER_ADMIN_PASSWORD 环境变量；未设置则随机生成并只打印一次
+			defaultPassword := os.Getenv("SUPER_ADMIN_PASSWORD")
+			generated := false
+			if defaultPassword == "" {
+				buf := make([]byte, 18)
+				if _, err := rand.Read(buf); err != nil {
+					return fmt.Errorf("生成超级管理员初始口令失败: %w", err)
+				}
+				defaultPassword = base64.RawURLEncoding.EncodeToString(buf)
+				generated = true
+			}
 			hash, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
 			if err != nil {
 				return fmt.Errorf("生成密码哈希失败: %w", err)
@@ -132,7 +144,12 @@ func SeedData(db *gorm.DB) error {
 			if err := db.Create(&superAdmin).Error; err != nil {
 				return fmt.Errorf("创建超级管理员失败: %w", err)
 			}
-			log.Println("[Seed] 超级管理员已创建 (用户名: admin, 手机号: 13800000000, 密码: CHANGE_ME_ADMIN_PASSWORD)")
+			log.Println("[Seed] 超级管理员已创建 (用户名: admin, 手机号: 13800000000)")
+			if generated {
+				log.Printf("[Seed] 初始口令（仅本次显示，请立刻登录后修改）: %s", defaultPassword)
+			} else {
+				log.Println("[Seed] 初始口令来自环境变量 SUPER_ADMIN_PASSWORD")
+			}
 		} else {
 			return err
 		}

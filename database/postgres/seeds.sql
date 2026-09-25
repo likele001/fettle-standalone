@@ -14,21 +14,23 @@ VALUES (
 
 -- ============================================
 -- 2. 超级管理员账号
---    用户名: superadmin
---    密码:   CHANGE_ME_ADMIN_PASSWORD
---    (bcrypt hash of 'CHANGE_ME_ADMIN_PASSWORD')
+--    ⚠️ 口令不在此处明文定义，本段已默认关闭。
+--    首次启动时由 user-service 的 AutoMigrate 播种：
+--      · 读过环境变量 SUPER_ADMIN_PASSWORD 则用它；
+--      · 未设置则生成随机口令，并在日志中只打印一次。
+--    如需用本 SQL 手工初始化，请先自行生成 bcrypt 哈希再放开下面的语句。
 -- ============================================
-INSERT INTO users (id, tenant_id, phone, email, password_hash, name, role, status)
-VALUES (
-    '00000000-0000-0000-0000-000000000010',
-    '00000000-0000-0000-0000-000000000001',
-    '13800000000',
-    'admin@fettle.com',
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7wVjB5T8h1Kd3O6E2XpF7Wm',
-    '超级管理员',
-    'super_admin',
-    'active'
-) ON CONFLICT (id) DO NOTHING;
+-- INSERT INTO users (id, tenant_id, phone, email, password_hash, name, role, status)
+-- VALUES (
+--     '00000000-0000-0000-0000-000000000010',
+--     '00000000-0000-0000-0000-000000000001',
+--     '13800000000',
+--     'admin@fettle.com',
+--     '<在此填入自建的 bcrypt 哈希>',
+--     '超级管理员',
+--     'super_admin',
+--     'active'
+-- ) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- 3. 预置权限

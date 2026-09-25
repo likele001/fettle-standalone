@@ -130,11 +130,13 @@ docker compose down
 
 ## 配置信息
 
-- 数据库：`standalone / CHANGE_ME`
-- Redis：无密码
-- JWT 密钥：`CHANGE_ME_openssl_rand_hex_32`
+所有口令与密钥一律通过环境变量注入，**不要写进文档、更不要提交到仓库**：
 
-如需修改，编辑 `deploy/docker/docker-compose.yml` 后重新构建对应服务即可。
+- 数据库账号：见 `.env` 的 `DB_USER` / `DB_PASSWORD`
+- Redis：见 `.env` 的 `REDIS_PASSWORD`
+- JWT 密钥：见 `.env` 的 `JWT_SECRET`（≥32 字节随机串，可用 `openssl rand -hex 32` 生成）
+
+如需修改，编辑 `deploy/docker/.env` 后重新构建对应服务即可。
 
 ## 架构
 

@@ -3,7 +3,8 @@ server:
   mode: release  # debug | release | test
 
 jwt:
-  secret: "CHANGE_ME_openssl_rand_hex_32"
+  # 留空即可：JWT 密钥必须由环境变量 JWT_SECRET 注入，缺失时服务拒绝启动
+  secret: ""
   expire_hours: 72
   refresh_expire_hours: 168
 
