@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -246,7 +247,11 @@ func TestGetUserID(t *testing.T) {
 	r.ServeHTTP(w, req)
 }
 
-func TestCORSMiddleware(t *testing.T) {
+// TestCORSMiddleware_DefaultDeny 未配置 ALLOWED_ORIGINS 时不得放行任何跨域。
+// 安全策略：不回退到 "*"（全开放），避免生产环境误放行。
+func TestCORSMiddleware_DefaultDeny(t *testing.T) {
+	os.Unsetenv("ALLOWED_ORIGINS")
+
 	r := gin.New()
 	r.Use(CORSMiddleware())
 	r.GET("/test", func(c *gin.Context) {
@@ -255,14 +260,61 @@ func TestCORSMiddleware(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/test", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
 	r.ServeHTTP(w, req)
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("CORS header missing")
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("未配置白名单时应拒绝跨域，却返回了 Access-Control-Allow-Origin=%q", got)
 	}
 }
 
+// TestCORSMiddleware_AllowListedOrigin 白名单命中的 Origin 应被回显放行。
+func TestCORSMiddleware_AllowListedOrigin(t *testing.T) {
+	os.Setenv("ALLOWED_ORIGINS", "https://app.example.com,https://admin.example.com")
+	defer os.Unsetenv("ALLOWED_ORIGINS")
+
+	r := gin.New()
+	r.Use(CORSMiddleware())
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/test", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Errorf("白名单内 Origin 应被放行，实际 Access-Control-Allow-Origin=%q", got)
+	}
+}
+
+// TestCORSMiddleware_RejectUnlistedOrigin 不在白名单内的 Origin 应被拒绝。
+func TestCORSMiddleware_RejectUnlistedOrigin(t *testing.T) {
+	os.Setenv("ALLOWED_ORIGINS", "https://app.example.com")
+	defer os.Unsetenv("ALLOWED_ORIGINS")
+
+	r := gin.New()
+	r.Use(CORSMiddleware())
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/test", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("白名单外 Origin 应被拒绝，实际 Access-Control-Allow-Origin=%q", got)
+	}
+}
+
+// TestCORSMiddleware_Preflight OPTIONS 预检应返回 204 且带 CORS 方法声明。
 func TestCORSMiddleware_Preflight(t *testing.T) {
+	os.Setenv("ALLOWED_ORIGINS", "https://app.example.com")
+	defer os.Unsetenv("ALLOWED_ORIGINS")
+
 	r := gin.New()
 	r.Use(CORSMiddleware())
 	r.GET("/test", func(c *gin.Context) {
@@ -271,10 +323,15 @@ func TestCORSMiddleware_Preflight(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("OPTIONS", "/test", nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
 	r.ServeHTTP(w, req)
 
-	if w.Code != 204 {
-		t.Errorf("expected 204 for preflight, got %d", w.Code)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("预检请求应返回 204，实际 %d", w.Code)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Methods"); got == "" {
+		t.Error("预检响应缺少 Access-Control-Allow-Methods")
 	}
 }
 

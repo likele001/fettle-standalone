@@ -57,7 +57,7 @@ func main() {
 
 	// 自动迁移
 	if err := models.AutoMigrate(db); err != nil {
-		logger.Warn("migration warning", zap.Error(err))
+		logger.Fatal("failed to migrate database", zap.Error(err))
 	}
 
 	// 初始化数据

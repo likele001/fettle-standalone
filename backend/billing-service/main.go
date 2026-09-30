@@ -65,7 +65,7 @@ func main() {
 		&models.TenantUsageDetail{},
 		&models.TenantRechargeRecord{},
 	); err != nil {
-		logger.Warn("migration warning", zap.Error(err))
+		logger.Fatal("failed to migrate database", zap.Error(err))
 	}
 
 	billingService := service.NewBillingService(db)
