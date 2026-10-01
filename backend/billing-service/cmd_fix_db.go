@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -12,7 +13,7 @@ import (
 )
 
 func main() {
-	db, err := gorm.Open(postgres.Open("host=127.0.0.1 port=5432 user=ai_platform password=CHANGE_ME dbname=ai_platform sslmode=disable"), &gorm.Config{
+	db, err := gorm.Open(postgres.Open(fixdbTestDSN()), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
@@ -46,10 +47,10 @@ func main() {
 			MessagesUsed int64  `gorm:"default:0"`
 		}{},
 		&struct {
-			ID             string  `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-			TenantID       string  `gorm:"type:uuid;not null;index"`
-			SubscriptionID string  `gorm:"type:uuid;not null"`
-			Type           string  `gorm:"size:20;not null"`
+			ID             string `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+			TenantID       string `gorm:"type:uuid;not null;index"`
+			SubscriptionID string `gorm:"type:uuid;not null"`
+			Type           string `gorm:"size:20;not null"`
 			Amount         int64
 			Cost           float64 `gorm:"type:decimal(10,4);not null"`
 		}{},
@@ -64,4 +65,21 @@ func main() {
 	db.Exec("INSERT INTO plans (id, name, description, price, period, max_agents, max_messages, features, is_active) VALUES ('22222222-2222-2222-2222-222222222222', '专业版', '适合小型团队', 299, 'month', 5, 10000, '[\"5个智能体\",\"10000条消息/月\",\"高级功能\",\"优先支持\",\"API接入\"]', true) ON CONFLICT DO NOTHING")
 	db.Exec("INSERT INTO plans (id, name, description, price, period, max_agents, max_messages, features, is_active) VALUES ('33333333-3333-3333-3333-333333333333', '企业版', '适合大型企业', 999, 'month', 999, 999999, '[\"无限智能体\",\"无限消息\",\"全部功能\",\"专属支持\",\"私有部署\",\"SLA保障\"]', true) ON CONFLICT DO NOTHING")
 	fmt.Println("套餐已插入")
+}
+
+// fixdbTestDSN 从环境变量组装数据库 DSN（禁止在源码中硬编码口令）。
+func fixdbTestDSN() string {
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		fixdbEnvOr("DB_HOST", "127.0.0.1"),
+		fixdbEnvOr("DB_PORT", "5432"),
+		fixdbEnvOr("DB_USER", "ai_platform"),
+		os.Getenv("DB_PASSWORD"),
+		fixdbEnvOr("DB_NAME", "ai_platform"))
+}
+
+func fixdbEnvOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }

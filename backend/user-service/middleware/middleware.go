@@ -9,4 +9,5 @@ var TenantMiddleware = middleware.TenantMiddleware
 var LoggerMiddleware = middleware.LoggerMiddleware
 var CORSMiddleware = middleware.CORSMiddleware
 var TraceMiddleware = middleware.TraceMiddleware
+var MustTrustLocalProxies = middleware.MustTrustLocalProxies
 var GetRole = middleware.GetRole

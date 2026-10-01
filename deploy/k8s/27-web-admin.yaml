@@ -1,0 +1,89 @@
+# ============================================================================
+# web-admin —— 前端管理台（Nginx 静态站）
+# ----------------------------------------------------------------------------
+# 端口 80。旧清单 image 写的是 ai-platform/web-admin:latest，
+# 与其他 12 个服务的 fettle/* 不一致，已统一为 fettle/web-admin:latest。
+# 构建来源：frontend/web-admin/deploy/Dockerfile
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-admin
+  namespace: fettle
+  labels:
+    app: web-admin
+    app.kubernetes.io/name: web-admin
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-admin
+  template:
+    metadata:
+      labels:
+        app: web-admin
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101          # nginx 非特权镜像默认用户
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web-admin
+          image: fettle/web-admin:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-admin
+  namespace: fettle
+  labels:
+    app: web-admin
+    app.kubernetes.io/part-of: fettle
+spec:
+  type: ClusterIP
+  selector:
+    app: web-admin
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

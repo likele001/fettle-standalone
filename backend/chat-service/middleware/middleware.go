@@ -22,6 +22,7 @@ var TenantMiddleware = middleware.TenantMiddleware
 var LoggerMiddleware = middleware.LoggerMiddleware
 var CORSMiddleware = middleware.CORSMiddleware
 var TraceMiddleware = middleware.TraceMiddleware
+var MustTrustLocalProxies = middleware.MustTrustLocalProxies
 var EitherAuthMiddleware = middleware.EitherAuthMiddleware
 
 // AdminAuth admin auth middleware - requires super_admin role, no tenant_id needed

@@ -1,0 +1,109 @@
+{{/*
+============================================================================
+渠道插件（wechat / wecom / feishu / dingtalk / douyin）
+---------------------------------------------------------------------------
+插件通过 NATS 与 chat-service 通信，自身也提供一个 webhook HTTP 端口
+接收平台回调（默认 20021-20025），需要对外暴露时在 ingress 层再加路由。
+============================================================================
+*/}}
+{{- if .Values.services.plugins.enabled }}
+{{- range $name, $plugin := .Values.services.plugins }}
+{{- if and (ne $name "enabled") $plugin.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-plugin
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $name }}-plugin
+    {{- include "fettle.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $plugin.replicas | default 2 }}
+  selector:
+    matchLabels:
+      app: {{ $name }}-plugin
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}-plugin
+        {{- include "fettle.selectorLabels" $ | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "fettle.serviceAccountName" $ }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ $name }}-plugin
+          image: {{ include "fettle.image" (dict
+                     "registry" $.Values.global.imageRegistry
+                     "repository" $plugin.image
+                     "tag" $.Values.global.imageTag) }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $plugin.port }}
+              protocol: TCP
+          env:
+            - name: APP_PORT
+              value: {{ $plugin.port | quote }}
+            - name: APP_ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "info"
+            # ⚠️ 代码读的是 NATS_URL；原 chart 写 NATS_ADDR 是无效变量
+            - name: NATS_URL
+              value: {{ printf "nats://%s:%v" $.Values.infra.nats.host $.Values.infra.nats.port | quote }}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fettle.secretName" $ }}
+                  key: nats-password
+            - name: GATEWAY_ADDR
+              value: {{ printf "http://gateway:%v" $.Values.services.gateway.port | quote }}
+            - name: CHANNEL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fettle.secretName" $ }}
+                  key: channel-secret
+          {{- if $.Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ $plugin.port }}
+            initialDelaySeconds: {{ $.Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.probes.readiness.periodSeconds }}
+          {{- end }}
+          {{- if $.Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ $plugin.port }}
+            initialDelaySeconds: {{ $.Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ $.Values.probes.liveness.periodSeconds }}
+          {{- end }}
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-plugin
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $name }}-plugin
+    {{- include "fettle.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ $name }}-plugin
+  ports:
+    - name: http
+      port: {{ $plugin.port }}
+      targetPort: {{ $plugin.port }}
+      protocol: TCP
+{{- end }}
+{{- end }}
+{{- end }}

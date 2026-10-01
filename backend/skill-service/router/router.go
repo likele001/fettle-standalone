@@ -12,6 +12,7 @@ import (
 
 func Setup(skillService *service.SkillService, jwtSecret string) *gin.Engine {
 	r := gin.New()
+	middleware.MustTrustLocalProxies(r)
 	r.Use(gin.Recovery())
 	r.Use(middleware.TraceMiddleware())
 	r.Use(middleware.LoggerMiddleware())

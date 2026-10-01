@@ -27,6 +27,7 @@ var serviceRoutes = map[string]string{
 // NewRouter 创建路由
 func NewRouter(redisClient *cache.RedisClient, jwtSecret string) *gin.Engine {
 	r := gin.New()
+	middleware.MustTrustLocalProxies(r)
 	r.RedirectTrailingSlash = false
 
 	// 全局中间件

@@ -1,6 +1,25 @@
-# Fettle Standalone - Docker Compose (host network mode)
-# Connects to existing infrastructure running on the server (bare metal or Docker)
-# Infrastructure: PostgreSQL(20010), Redis(20011), MongoDB(20012), NATS(20013), MinIO(20015), Milvus(20017)
+# Fettle Standalone - Docker Compose（host network 模式）
+#
+# 适用场景：宿主机（或宝塔面板）已自行部署好中间件，只需把应用服务容器化。
+#   - 中间件通过 127.0.0.1 访问（host network，与宿主机共用网络栈）
+#   - 不自带 PostgreSQL / Redis / NATS / MinIO / Milvus 容器
+#
+# 若需要「全自动、中间件也由容器托管」，请改用：
+#   cd deploy/docker && cp .env.example .env && ./gen-env.sh && docker compose up -d
+#
+# 使用前置条件（在仓库根创建 .env，可参考 .env.example）：
+#   DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
+#   REDIS_ADDR / REDIS_PASSWORD
+#   JWT_SECRET                 （必填，gateway 与 user-service 启动时强校验）
+#   AI_ENGINE_INTERNAL_TOKEN   （必填，agent/chat/gateway ↔ ai-engine 内部鉴权）
+#   BILLING_INTERNAL_TOKEN     （必填，agent/skill ↔ billing 内部鉴权）
+#   MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY
+#   NATS_URL
+#   MILVUS_HOST / MILVUS_PORT
+#   ALLOWED_ORIGINS            （必填，CORS 白名单；代码为 default-deny，留空则全部跨域被拒）
+#
+# 注意：以下变量使用 ${VAR:?} 语法强制校验，未在 .env 中设置时 compose 会直接拒绝启动，
+#       这是刻意设计——避免以写死的弱口令连上生产数据库。
 
 services:
   gateway:
@@ -10,12 +29,29 @@ services:
     container_name: fettle-gateway
     network_mode: host
     environment:
-      - APP_PORT=20001
-      - JWT_SECRET=${JWT_SECRET}
-      - REDIS_ADDR=127.0.0.1:6379
+      - GATEWAY_PORT=${GATEWAY_PORT:-20001}
+      - APP_ENV=${APP_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - REDIS_ADDR=${REDIS_ADDR:?REDIS_ADDR must be set in .env}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - USER_SERVICE_ADDR=${USER_SERVICE_ADDR:-http://127.0.0.1:20002}
+      - AGENT_SERVICE_ADDR=${AGENT_SERVICE_ADDR:-http://127.0.0.1:20003}
+      - CHAT_SERVICE_ADDR=${CHAT_SERVICE_ADDR:-http://127.0.0.1:20004}
+      - SKILL_SERVICE_ADDR=${SKILL_SERVICE_ADDR:-http://127.0.0.1:20005}
+      - BILLING_SERVICE_ADDR=${BILLING_SERVICE_ADDR:-http://127.0.0.1:20006}
+      - AI_ENGINE_ADDR=${AI_ENGINE_ADDR:-http://127.0.0.1:20007}
+      - AI_ENGINE_INTERNAL_TOKEN=${AI_ENGINE_INTERNAL_TOKEN:?AI_ENGINE_INTERNAL_TOKEN must be set in .env}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set in .env}
     volumes:
       - ./backend/gateway/config:/app/config:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -29,15 +65,33 @@ services:
     container_name: fettle-user-service
     network_mode: host
     environment:
-      - APP_PORT=20002
-      - DB_HOST=127.0.0.1
-      - DB_PORT=5432
-      - DB_USER=ai_platform
-      - DB_PASSWORD=CHANGE_ME
-      - DB_NAME=ai_platform
-      - REDIS_ADDR=127.0.0.1:6379
-      - JWT_SECRET=${JWT_SECRET}
+      - USER_SERVICE_PORT=${USER_SERVICE_PORT:-20002}
+      - APP_ENV=${APP_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_HOST=${DB_HOST:?DB_HOST must be set in .env}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:?DB_USER must be set in .env}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_NAME=${DB_NAME:?DB_NAME must be set in .env}
+      - REDIS_ADDR=${REDIS_ADDR:?REDIS_ADDR must be set in .env}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - AES_KEY=${AES_KEY:-}
+      - SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set in .env}
+      - SSO_ENABLED=${SSO_ENABLED:-false}
+      - SSO_ISSUER=${SSO_ISSUER:-}
+      - SSO_CLIENT_ID=${SSO_CLIENT_ID:-}
+      - SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET:-}
+      - SSO_REDIRECT_URI=${SSO_REDIRECT_URI:-}
+      - SSO_SCOPE=${SSO_SCOPE:-openid profile}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20002/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -51,15 +105,32 @@ services:
     container_name: fettle-agent-service
     network_mode: host
     environment:
-      - APP_PORT=20003
-      - DB_HOST=127.0.0.1
-      - DB_PORT=5432
-      - DB_USER=ai_platform
-      - DB_PASSWORD=CHANGE_ME
-      - DB_NAME=ai_platform
-      - REDIS_ADDR=127.0.0.1:6379
-      - AI_ENGINE_GRPC_ADDR=127.0.0.1:20008
+      - AGENT_SERVICE_PORT=${AGENT_SERVICE_PORT:-20003}
+      - APP_ENV=${APP_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_HOST=${DB_HOST:?DB_HOST must be set in .env}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:?DB_USER must be set in .env}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_NAME=${DB_NAME:?DB_NAME must be set in .env}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - AI_ENGINE_URL=${AI_ENGINE_URL:-http://127.0.0.1:20007}
+      - AI_ENGINE_GRPC_ADDR=${AI_ENGINE_GRPC_ADDR:-127.0.0.1:20008}
+      - AI_ENGINE_INTERNAL_TOKEN=${AI_ENGINE_INTERNAL_TOKEN:?AI_ENGINE_INTERNAL_TOKEN must be set in .env}
+      - BILLING_INTERNAL_TOKEN=${BILLING_INTERNAL_TOKEN:?BILLING_INTERNAL_TOKEN must be set in .env}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:?MINIO_ENDPOINT must be set in .env}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY must be set in .env}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?MINIO_SECRET_KEY must be set in .env}
+      - MINIO_BUCKET=${MINIO_BUCKET:-fettle}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set in .env}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20003/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -73,16 +144,26 @@ services:
     container_name: fettle-chat-service
     network_mode: host
     environment:
-      - APP_PORT=20004
-      - DB_HOST=127.0.0.1
-      - DB_PORT=5432
-      - DB_USER=ai_platform
-      - DB_PASSWORD=CHANGE_ME
-      - DB_NAME=ai_platform
-      - MONGO_URI=mongodb://ai_platform:CHANGE_ME@127.0.0.1:27017/ai_platform
-      - REDIS_ADDR=127.0.0.1:6379
-      - NATS_ADDR=127.0.0.1:4222
+      - CHAT_SERVICE_PORT=${CHAT_SERVICE_PORT:-20004}
+      - APP_ENV=${APP_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_HOST=${DB_HOST:?DB_HOST must be set in .env}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:?DB_USER must be set in .env}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_NAME=${DB_NAME:?DB_NAME must be set in .env}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - AI_ENGINE_URL=${AI_ENGINE_URL:-http://127.0.0.1:20007}
+      - AI_ENGINE_INTERNAL_TOKEN=${AI_ENGINE_INTERNAL_TOKEN:?AI_ENGINE_INTERNAL_TOKEN must be set in .env}
+      - NATS_URL=${NATS_URL:?NATS_URL must be set in .env}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set in .env}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20004/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -96,16 +177,27 @@ services:
     container_name: fettle-skill-service
     network_mode: host
     environment:
-      - APP_PORT=20005
-      - DB_HOST=127.0.0.1
-      - DB_PORT=5432
-      - DB_USER=ai_platform
-      - DB_PASSWORD=CHANGE_ME
-      - DB_NAME=ai_platform
-      - MINIO_ENDPOINT=127.0.0.1:9000
-      - MINIO_ACCESS_KEY=ai_platform
-      - MINIO_SECRET_KEY=CHANGE_ME
+      - SKILL_SERVICE_PORT=${SKILL_SERVICE_PORT:-20005}
+      - APP_ENV=${APP_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_HOST=${DB_HOST:?DB_HOST must be set in .env}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:?DB_USER must be set in .env}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_NAME=${DB_NAME:?DB_NAME must be set in .env}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - BILLING_INTERNAL_TOKEN=${BILLING_INTERNAL_TOKEN:?BILLING_INTERNAL_TOKEN must be set in .env}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:?MINIO_ENDPOINT must be set in .env}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY must be set in .env}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?MINIO_SECRET_KEY must be set in .env}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set in .env}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20005/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -119,14 +211,26 @@ services:
     container_name: fettle-billing-service
     network_mode: host
     environment:
-      - APP_PORT=20006
-      - DB_HOST=127.0.0.1
-      - DB_PORT=5432
-      - DB_USER=ai_platform
-      - DB_PASSWORD=CHANGE_ME
-      - DB_NAME=ai_platform
-      - REDIS_ADDR=127.0.0.1:6379
+      - BILLING_SERVICE_PORT=${BILLING_SERVICE_PORT:-20006}
+      - APP_ENV=${APP_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_HOST=${DB_HOST:?DB_HOST must be set in .env}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:?DB_USER must be set in .env}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_NAME=${DB_NAME:?DB_NAME must be set in .env}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - BILLING_INTERNAL_TOKEN=${BILLING_INTERNAL_TOKEN:?BILLING_INTERNAL_TOKEN must be set in .env}
+      - REDIS_ADDR=${REDIS_ADDR:?REDIS_ADDR must be set in .env}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set in .env}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20006/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -140,18 +244,32 @@ services:
     container_name: fettle-ai-engine
     network_mode: host
     environment:
-      - APP_HTTP_PORT=20007
-      - APP_GRPC_PORT=20008
-      - DB_HOST=127.0.0.1
-      - DB_PORT=5432
-      - DB_USER=ai_platform
-      - DB_PASSWORD=CHANGE_ME
-      - DB_NAME=ai_platform
-      - REDIS_HOST=127.0.0.1
-      - REDIS_PORT=6379
-      - MILVUS_HOST=127.0.0.1
-      - MILVUS_PORT=19530
-      - NATS_URL=nats://127.0.0.1:4222
+      - APP_HTTP_PORT=${AI_ENGINE_PORT:-20007}
+      - APP_GRPC_PORT=${AI_ENGINE_GRPC_PORT:-20008}
+      - APP_ENV=${APP_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_HOST=${DB_HOST:?DB_HOST must be set in .env}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:?DB_USER must be set in .env}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_NAME=${DB_NAME:?DB_NAME must be set in .env}
+      - REDIS_HOST=${REDIS_HOST:-127.0.0.1}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - MILVUS_HOST=${MILVUS_HOST:?MILVUS_HOST must be set in .env}
+      - MILVUS_PORT=${MILVUS_PORT:-19530}
+      - NATS_URL=${NATS_URL:?NATS_URL must be set in .env}
+      - AI_ENGINE_INTERNAL_TOKEN=${AI_ENGINE_INTERNAL_TOKEN:?AI_ENGINE_INTERNAL_TOKEN must be set in .env}
+      - BILLING_SERVICE_URL=${BILLING_SERVICE_URL:-http://127.0.0.1:20006}
+      - BILLING_INTERNAL_TOKEN=${BILLING_INTERNAL_TOKEN:?BILLING_INTERNAL_TOKEN must be set in .env}
+      - SKILL_SERVICE_URL=${SKILL_SERVICE_URL:-http://127.0.0.1:20005}
+      - AGENT_SERVICE_URL=${AGENT_SERVICE_URL:-http://127.0.0.1:20003}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be set in .env}
+    volumes:
+      - ./backend/ai-engine/data:/app/data
     restart: unless-stopped
     logging:
       driver: json-file
@@ -165,7 +283,7 @@ services:
       dockerfile: frontend/web-admin/deploy/Dockerfile
     container_name: fettle-web-admin
     ports:
-      - "20009:80"
+      - "${WEB_ADMIN_PORT:-20009}:80"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

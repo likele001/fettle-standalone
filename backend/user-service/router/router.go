@@ -17,6 +17,7 @@ import (
 // NewRouter 创建路由
 func NewRouter(db *gorm.DB, redisClient *cache.RedisClient, jwtSecret string) *gin.Engine {
 	r := gin.New()
+	middleware.MustTrustLocalProxies(r)
 	r.RedirectTrailingSlash = false
 
 	r.Use(gin.Recovery())

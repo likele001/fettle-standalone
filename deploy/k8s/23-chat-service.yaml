@@ -1,0 +1,171 @@
+# ============================================================================
+# chat-service —— 会话服务
+# ----------------------------------------------------------------------------
+# 端口 20004。
+# ⚠️ 代码读取的环境变量是 NATS_URL（不是 NATS_ADDR）。
+#    旧 docker-compose.yml 里写 NATS_ADDR 是完全无效的，已在加固中修正。
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-service
+  namespace: fettle
+  labels:
+    app: chat-service
+    app.kubernetes.io/name: chat-service
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chat-service
+  template:
+    metadata:
+      labels:
+        app: chat-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: chat-service
+          image: fettle/chat-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 20004
+          env:
+            - name: APP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: CHAT_SERVICE_PORT
+            - name: GIN_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: GIN_MODE
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: ALLOWED_ORIGINS
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_NAME
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: REDIS_ADDR
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: NATS_URL
+            - name: MONGODB_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: MONGODB_URI
+            - name: MONGODB_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: MONGODB_DB
+            - name: AI_ENGINE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: AI_ENGINE_ADDR
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: DB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: JWT_SECRET
+            - name: AI_ENGINE_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: AI_ENGINE_INTERNAL_TOKEN
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: REDIS_PASSWORD
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: MONGODB_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 20004
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 20004
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-service
+  namespace: fettle
+  labels:
+    app: chat-service
+    app.kubernetes.io/part-of: fettle
+spec:
+  type: ClusterIP
+  selector:
+    app: chat-service
+  ports:
+    - name: http
+      port: 20004
+      targetPort: 20004

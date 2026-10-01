@@ -1,6 +1,15 @@
 apiVersion: v2
 name: fettle
-description: AI Agent Platform - Helm Chart
+description: Fettle AI Agent Platform —— 后端服务 + 中间件 + 渠道插件
 type: application
-version: 0.1.0
+version: 1.0.0
 appVersion: "1.0.0"
+kubeVersion: ">=1.24.0-0"
+keywords:
+  - ai
+  - agent
+  - platform
+  - fettle
+home: https://example.com
+maintainers:
+  - name: fettle

@@ -1,127 +1,300 @@
-global:
-  imageRegistry: ""
-  imageTag: latest
-  jwtSecret: change-me-in-production
+# ============================================================================
+# Fettle AI Agent Platform —— Helm values
+# ----------------------------------------------------------------------------
+# ⚠️ 本文件中的 __REQUIRED__ 占位符**不允许直接部署**。
+#    chart 内 templates/NOTES.txt 与 templates/secrets.yaml 会做硬校验：
+#    未提供真实值 → helm install 直接失败（fail-fast，不会静默用弱口令连库）。
+#
+# 部署方式（推荐用 --set 或独立 values 文件，不要把密钥写进本文件）：
+#
+#   helm install fettle ./fettle -n fettle --create-namespace \
+#     --set global.jwtSecret="$(openssl rand -hex 32)" \
+#     --set secrets.dbPassword="$(openssl rand -hex 24)" \
+#     --set secrets.aiEngineInternalToken="$(openssl rand -hex 32)" \
+#     --set secrets.billingInternalToken="$(openssl rand -hex 32)" \
+#     --set secrets.minioSecretKey="$(openssl rand -hex 24)" \
+#     --set secrets.channelSecret="$(openssl rand -hex 24)"
+#
+#   更规范的做法：用 external-secrets / sealed-secrets 接管，
+#   把 secrets.externalSecret.enabled 设为 true。
+#
+# 校验：helm lint ./fettle && helm template fettle ./fettle -f my-values.yaml
+# ============================================================================
 
+# ---- 全局 ----
+global:
+  # 镜像仓库前缀。留空则使用镜像默认 registry（docker hub / 私有仓库需填全）
+  imageRegistry: ""
+  imageTag: "latest"
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+  # ⚠️ JWT 签发密钥，必须全局一致。__REQUIRED__ = 未设置则拒绝部署
+  jwtSecret: "__REQUIRED__"
+
+  # CORS 白名单。⚠️ 不要用 "*"：backend/shared/middleware/cors.go 在
+  # ALLOWED_ORIGINS="*" 时会回显 "*" 且附带 Allow-Credentials: true，
+  # 浏览器会拒绝该响应，跨域反而失效。必须填具体域名。
+  allowedOrigins: "https://admin.example.com,https://www.example.com"
+
+# ---- 敏感凭据（会被渲染进 Secret；生产请改走 external-secrets）----
+secrets:
+  # 使用外部 Secret 管理时置 true，此时下面的值全部忽略
+  externalSecret:
+    enabled: false
+    name: ""
+
+  dbPassword: "__REQUIRED__"
+  aiEngineInternalToken: "__REQUIRED__"
+  billingInternalToken: "__REQUIRED__"
+  redisPassword: ""
+  mongodbPassword: ""
+  natsPassword: ""
+  channelSecret: ""
+  minioAccessKey: ""
+  minioSecretKey: ""
+
+# ---- 中间件 ----
 infra:
   postgres:
     enabled: true
+    image: postgres:16-alpine
     host: postgres
     port: 5432
-    user: ai_platform
-    password: CHANGE_ME
-    database: ai_platform
+    user: fettle
+    database: fettle
+    storage: 10Gi
+    storageClassName: ""
+    resources:
+      requests: { cpu: 250m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
 
   redis:
     enabled: true
+    image: redis:7-alpine
     host: redis
     port: 6379
+    storage: 2Gi
+    storageClassName: ""
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   mongodb:
     enabled: true
-    uri: mongodb://mongodb:27017
-    database: ai_platform
+    image: mongo:7-jammy
+    host: mongodb
+    port: 27017
+    database: fettle
+    storage: 10Gi
+    storageClassName: ""
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
 
   nats:
     enabled: true
-    url: nats://nats:4222
-
-  milvus:
-    enabled: true
-    host: milvus
-    port: 19530
+    image: nats:2.10-alpine
+    host: nats
+    port: 4222
+    storage: 5Gi
+    storageClassName: ""
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   minio:
     enabled: true
-    endpoint: minio:9000
-    accessKey: ai_platform
-    secretKey: CHANGE_ME
-    bucket: documents
+    image: minio/minio:latest
+    host: minio
+    port: 9000
+    consolePort: 9001
+    bucket: fettle
+    storage: 20Gi
+    storageClassName: ""
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
 
+  # Milvus 依赖较重（etcd + minio + 自身），默认关闭。
+  # 需要向量检索时置 true，并自行准备集群级 Milvus（推荐用 milvus-operator）。
+  milvus:
+    enabled: false
+    host: milvus
+    port: 19530
+
+# ---- 应用服务 ----
+# 端口体系以 docker-compose.yml 为唯一基准，两套编排必须一致
 services:
   gateway:
     enabled: true
+    image: gateway
     port: 20001
-    replicas: 2
+    replicas: 3
     resources:
       requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: 500m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   userService:
     enabled: true
+    image: user-service
     port: 20002
     replicas: 2
     resources:
       requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: 500m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   agentService:
     enabled: true
+    image: agent-service
     port: 20003
     replicas: 2
     resources:
       requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: 500m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   chatService:
     enabled: true
+    image: chat-service
     port: 20004
     replicas: 2
     resources:
       requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: 500m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   skillService:
     enabled: true
+    image: skill-service
     port: 20005
-    replicas: 1
+    replicas: 2
     resources:
       requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: 500m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   billingService:
     enabled: true
+    image: billing-service
     port: 20006
-    replicas: 1
+    replicas: 2
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }
 
   aiEngine:
     enabled: true
-    httpPort: 20007
-    grpcPort: 20008
+    image: ai-engine
+    port: 20007          # HTTP
+    grpcPort: 20008      # gRPC
     replicas: 2
+    # ⚠️ API Key 属于敏感信息，走 secrets.extra 或 external-secrets，
+    #    不要写在这里。此处的空值会被渲染为不注入该环境变量。
     qwenApiKey: ""
     deepseekApiKey: ""
     openaiApiKey: ""
+    resources:
+      requests: { cpu: 200m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
 
   webAdmin:
     enabled: true
+    image: web-admin
     port: 80
-    replicas: 1
+    replicas: 2
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 250m, memory: 256Mi }
 
   plugins:
     enabled: true
     wechat:
       enabled: true
-      port: 9001
-      replicas: 1
+      image: wechat-plugin
+      port: 20021
+      replicas: 2
     wecom:
       enabled: true
-      port: 9002
-      replicas: 1
+      image: wecom-plugin
+      port: 20022
+      replicas: 2
     feishu:
       enabled: true
-      port: 9003
-      replicas: 1
+      image: feishu-plugin
+      port: 20023
+      replicas: 2
     dingtalk:
       enabled: true
-      port: 9004
-      replicas: 1
+      image: dingtalk-plugin
+      port: 20024
+      replicas: 2
     douyin:
       enabled: true
-      port: 9005
-      replicas: 1
+      image: douyin-plugin
+      port: 20025
+      replicas: 2
 
+# ---- 入口 ----
 ingress:
   enabled: true
-  host: ai-platform.example.com
   className: nginx
+  # 后端 API 域名
+  apiHost: api.example.com
+  # 管理台域名（留空则只创建 API Ingress）
+  adminHost: admin.example.com
+  tls:
+    enabled: true
+    apiSecretName: fettle-api-tls
+    adminSecretName: fettle-admin-tls
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+
+# ---- 调度与安全 ----
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+
+# ---- 探针 ----
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# ---- 高可用 ----
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# ---- 网络策略 ----
+networkPolicy:
+  enabled: true
+
+# ---- 其他 ----
+nameOverride: ""
+fullnameOverride: ""
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

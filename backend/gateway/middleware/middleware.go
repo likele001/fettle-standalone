@@ -13,6 +13,7 @@ var TenantMiddleware = middleware.TenantMiddleware
 var LoggerMiddleware = middleware.LoggerMiddleware
 var CORSMiddleware = middleware.CORSMiddleware
 var TraceMiddleware = middleware.TraceMiddleware
+var MustTrustLocalProxies = middleware.MustTrustLocalProxies
 
 // RecoveryMiddleware panic恢复中间件
 func RecoveryMiddleware() gin.HandlerFunc {

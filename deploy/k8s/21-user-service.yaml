@@ -1,0 +1,139 @@
+# ============================================================================
+# user-service —— 用户 / 认证服务
+# ----------------------------------------------------------------------------
+# 端口 20002，与 docker-compose.yml 一致（旧 K8s 清单里写的 20015 是错的）。
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: fettle
+  labels:
+    app: user-service
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: user-service
+          image: fettle/user-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 20002
+          env:
+            - name: APP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: USER_SERVICE_PORT
+            - name: GIN_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: GIN_MODE
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: ALLOWED_ORIGINS
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_NAME
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: REDIS_ADDR
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: DB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: JWT_SECRET
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: REDIS_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 20002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 20002
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: fettle
+  labels:
+    app: user-service
+    app.kubernetes.io/part-of: fettle
+spec:
+  type: ClusterIP
+  selector:
+    app: user-service
+  ports:
+    - name: http
+      port: 20002
+      targetPort: 20002

@@ -32,7 +32,10 @@ func main() {
 	dbHost := config.GetEnv("DB_HOST", "localhost")
 	dbPort := config.GetEnvInt("DB_PORT", 5432)
 	dbUser := config.GetEnv("DB_USER", "ai_platform")
-	dbPassword := config.GetEnv("DB_PASSWORD", "CHANGE_ME")
+	dbPassword := config.GetEnv("DB_PASSWORD", "")
+	if dbPassword == "" {
+		logger.Fatal("DB_PASSWORD environment variable is required")
+	}
 	dbName := config.GetEnv("DB_NAME", "ai_platform")
 	aiEngineURL := config.GetEnv("AI_ENGINE_URL", "http://localhost:9107")
 	jwtSecret := config.GetEnv("JWT_SECRET", "")

@@ -15,6 +15,7 @@ import (
 
 func NewRouter(db *gorm.DB, jwtSecret string, aiEngineURL string) (*gin.Engine, *service.ChatService) {
 	r := gin.New()
+	middleware.MustTrustLocalProxies(r)
 	r.Use(gin.Recovery())
 	r.Use(middleware.TraceMiddleware())
 	r.Use(middleware.LoggerMiddleware())

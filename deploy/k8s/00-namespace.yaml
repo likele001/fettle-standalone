@@ -1,0 +1,33 @@
+# ============================================================================
+# 命名空间
+# ----------------------------------------------------------------------------
+# 本目录下所有资源统一落在 fettle 命名空间。
+# 注意：不要改回 ai-platform —— 旧版清单里的 ai-platform 命名空间已废弃，
+#       deploy/k8s/namespace.yaml 之前只声明了 ai-platform，而 90% 的资源
+#       写在 fettle 里，导致 kubectl apply 直接报 namespace not found。
+# ============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fettle
+  labels:
+    app.kubernetes.io/name: fettle
+    app.kubernetes.io/part-of: fettle
+    # Pod Security Admission：应用容器均以非 root 运行，可提升到 restricted
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+---
+# 兼容：旧集群里可能已有 ai-platform 命名空间下的遗留资源（gateway /
+# user-service / web-admin / postgres / redis）。若确认已迁移，可执行：
+#   kubectl delete ns ai-platform
+# 保留声明本身是无害的（幂等），如不需要可直接删除下面这段。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-platform
+  labels:
+    app.kubernetes.io/name: fettle
+    app.kubernetes.io/part-of: fettle
+    fettle.io/deprecated: "true"
+  annotations:
+    fettle.io/note: "遗留命名空间，资源已迁移至 fettle，可安全删除"

@@ -1,10 +1,12 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
-COPY backend/skill-service/go.mod backend/skill-service/go.sum ./
+COPY backend/shared /app/shared
+COPY backend/skill-service/go.mod backend/skill-service/go.sum /app/skill-service/
+WORKDIR /app/skill-service
 RUN go mod download
 
-COPY backend/skill-service/ ./
+COPY backend/skill-service/ /app/skill-service/
 RUN CGO_ENABLED=0 GOOS=linux go build -o skill-service .
 
 FROM alpine:latest

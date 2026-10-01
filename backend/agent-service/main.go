@@ -35,7 +35,10 @@ func main() {
 	dbHost := config.GetEnv("DB_HOST", "localhost")
 	dbPort := config.GetEnvInt("DB_PORT", 5432)
 	dbUser := config.GetEnv("DB_USER", "ai_platform")
-	dbPassword := config.GetEnv("DB_PASSWORD", "CHANGE_ME")
+	dbPassword := config.GetEnv("DB_PASSWORD", "")
+	if dbPassword == "" {
+		logger.Fatal("DB_PASSWORD environment variable is required")
+	}
 	dbName := config.GetEnv("DB_NAME", "ai_platform")
 	jwtSecret := config.GetEnv("JWT_SECRET", "")
 	if jwtSecret == "" {
@@ -77,11 +80,14 @@ func main() {
 
 	var minioClient *storage.MinioClient
 	minioEndpoint := config.GetEnv("MINIO_ENDPOINT", "")
+	if minioEndpoint != "" && config.GetEnv("MINIO_SECRET_KEY", "") == "" {
+		logger.Fatal("MINIO_SECRET_KEY environment variable is required when MINIO_ENDPOINT is set")
+	}
 	if minioEndpoint != "" {
 		mc, err := storage.NewMinioClient(&storage.MinioConfig{
 			Endpoint:  minioEndpoint,
 			AccessKey: config.GetEnv("MINIO_ACCESS_KEY", "ai_platform"),
-			SecretKey: config.GetEnv("MINIO_SECRET_KEY", "CHANGE_ME"),
+			SecretKey: config.GetEnv("MINIO_SECRET_KEY", ""),
 			Bucket:    config.GetEnv("MINIO_BUCKET", "documents"),
 			UseSSL:    config.GetEnv("MINIO_USE_SSL", "false") == "true",
 		})

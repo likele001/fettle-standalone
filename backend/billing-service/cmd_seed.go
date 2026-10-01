@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"ai-platform/billing-service/models"
@@ -15,7 +16,7 @@ import (
 )
 
 func main() {
-	db, err := gorm.Open(postgres.Open("host=127.0.0.1 port=5432 user=ai_platform password=CHANGE_ME dbname=ai_platform sslmode=disable"), &gorm.Config{
+	db, err := gorm.Open(postgres.Open(seedTestDSN()), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
@@ -68,4 +69,21 @@ func main() {
 			fmt.Println("已插入/存在:", p.Name)
 		}
 	}
+}
+
+// seedTestDSN 从环境变量组装数据库 DSN（禁止在源码中硬编码口令）。
+func seedTestDSN() string {
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		seedEnvOr("DB_HOST", "127.0.0.1"),
+		seedEnvOr("DB_PORT", "5432"),
+		seedEnvOr("DB_USER", "ai_platform"),
+		os.Getenv("DB_PASSWORD"),
+		seedEnvOr("DB_NAME", "ai_platform"))
+}
+
+func seedEnvOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }

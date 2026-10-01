@@ -9,12 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"ai-platform/billing-service/models"
+	"ai-platform/billing-service/repository"
+	"ai-platform/billing-service/router"
+	"ai-platform/billing-service/service"
 	"ai-platform/shared/config"
 	"ai-platform/shared/logger"
-	"ai-platform/billing-service/models"
-	"ai-platform/billing-service/router"
-	"ai-platform/billing-service/repository"
-	"ai-platform/billing-service/service"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -32,7 +32,10 @@ func main() {
 	dbHost := config.GetEnv("DB_HOST", "localhost")
 	dbPort := config.GetEnvInt("DB_PORT", 5432)
 	dbUser := config.GetEnv("DB_USER", "ai_platform")
-	dbPassword := config.GetEnv("DB_PASSWORD", "CHANGE_ME")
+	dbPassword := config.GetEnv("DB_PASSWORD", "")
+	if dbPassword == "" {
+		logger.Fatal("DB_PASSWORD environment variable is required")
+	}
 	dbName := config.GetEnv("DB_NAME", "ai_platform")
 	jwtSecret := config.GetEnv("JWT_SECRET", "")
 	if jwtSecret == "" {

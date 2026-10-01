@@ -9,7 +9,7 @@ services:
       - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-standalone}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-standalone}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-standalone}
     volumes:
       - fettle_pg_data:/var/lib/postgresql/data
@@ -50,10 +50,16 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-standalone}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - DB_NAME=${POSTGRES_DB:-standalone}
       - REDIS_ADDR=redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20002/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,18 +81,29 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-standalone}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - DB_NAME=${POSTGRES_DB:-standalone}
       - REDIS_ADDR=redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
       - USER_SERVICE_ADDR=http://user-service:20002
       - AGENT_SERVICE_ADDR=http://agent-service:20003
       - CHAT_SERVICE_ADDR=http://chat-service:20004
       - SKILL_SERVICE_ADDR=http://skill-service:20005
       - BILLING_SERVICE_ADDR=http://billing-service:20006
       - AI_ENGINE_ADDR=http://ai-engine:20007
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     depends_on:
-      - user-service
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
 
   agent-service:
     build:
@@ -103,11 +120,18 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-standalone}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - DB_NAME=${POSTGRES_DB:-standalone}
       - REDIS_ADDR=redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
       - AI_ENGINE_GRPC_ADDR=ai-engine:20008
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20003/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,20 +153,24 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-standalone}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - DB_NAME=${POSTGRES_DB:-standalone}
       - REDIS_ADDR=redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change_me}
-      - MONGODB_URI=${MONGODB_URI:-mongodb://host.docker.internal:27017}
-      - MONGODB_DATABASE=${MONGODB_DATABASE:-fettle_standalone}
-      - NATS_URL=${NATS_URL:-nats://host.docker.internal:4222}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - NATS_URL=${NATS_URL:-nats://nats:4222}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20004/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      nats:
+        condition: service_started
 
   skill-service:
     build:
@@ -159,13 +187,17 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-standalone}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - DB_NAME=${POSTGRES_DB:-standalone}
       - REDIS_ADDR=redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change_me}
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-host.docker.internal:9000}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20005/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -187,10 +219,16 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-standalone}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - DB_NAME=${POSTGRES_DB:-standalone}
       - REDIS_ADDR=redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change_me}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:20006/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -214,20 +252,46 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-standalone}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-standalone}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - DB_NAME=${POSTGRES_DB:-standalone}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - NATS_URL=${NATS_URL:-nats://host.docker.internal:4222}
+      - NATS_URL=${NATS_URL:-nats://nats:4222}
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      nats:
+        condition: service_started
+
+  nats:
+    image: nats:2.10
+    restart: unless-stopped
+    command: ["-js", "-m", "8222"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY must be set in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY must be set in .env}
+    volumes:
+      - fettle_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   web-admin:
     build:
@@ -236,9 +300,11 @@ services:
     container_name: fettle-web-admin
     restart: unless-stopped
     ports:
-      - "20009:20009"
+      - "20009:80"
     depends_on:
-      - gateway
+      gateway:
+        condition: service_started
 
 volumes:
   fettle_pg_data:
+  fettle_minio_data:

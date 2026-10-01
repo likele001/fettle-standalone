@@ -12,6 +12,7 @@ import (
 
 func Setup(billingService *service.BillingService, paymentService *service.PaymentService, exportService *service.ExportService, aiBillingService *service.AIBillingService, jwtSecret string) *gin.Engine {
 	r := gin.New()
+	middleware.MustTrustLocalProxies(r)
 	r.Use(gin.Recovery())
 	r.Use(middleware.TraceMiddleware())
 	r.Use(middleware.LoggerMiddleware())

@@ -1,0 +1,170 @@
+# ============================================================================
+# agent-service —— Agent 编排服务
+# ----------------------------------------------------------------------------
+# 端口 20003。启用 MinIO 时（MINIO_ENDPOINT 非空）必须提供 MINIO_SECRET_KEY，
+# 否则 agent-service 启动即 Fatal（见 backend/agent-service/main.go）。
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-service
+  namespace: fettle
+  labels:
+    app: agent-service
+    app.kubernetes.io/name: agent-service
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-service
+  template:
+    metadata:
+      labels:
+        app: agent-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent-service
+          image: fettle/agent-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 20003
+          env:
+            - name: APP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: AGENT_SERVICE_PORT
+            - name: GIN_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: GIN_MODE
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: ALLOWED_ORIGINS
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_NAME
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: REDIS_ADDR
+            - name: AI_ENGINE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: AI_ENGINE_ADDR
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: MINIO_ENDPOINT
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: MINIO_BUCKET
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: DB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: JWT_SECRET
+            - name: AI_ENGINE_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: AI_ENGINE_INTERNAL_TOKEN
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: REDIS_PASSWORD
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: MINIO_SECRET_KEY
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 20003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 20003
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-service
+  namespace: fettle
+  labels:
+    app: agent-service
+    app.kubernetes.io/part-of: fettle
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-service
+  ports:
+    - name: http
+      port: 20003
+      targetPort: 20003

@@ -16,6 +16,7 @@ import (
 
 func NewRouter(db *gorm.DB, jwtSecret string, aiEngineAddr string, aiClient *grpc_client.AIEngineClient, minioClient *storage.MinioClient, workflowClient *service.WorkflowHTTPClient) *gin.Engine {
 	r := gin.New()
+	middleware.MustTrustLocalProxies(r)
 	r.Use(gin.Recovery())
 	r.Use(middleware.TraceMiddleware())
 	r.Use(middleware.LoggerMiddleware())

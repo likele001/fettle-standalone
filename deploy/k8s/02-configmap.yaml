@@ -1,0 +1,93 @@
+# ============================================================================
+# ConfigMap —— 非敏感配置
+# ----------------------------------------------------------------------------
+# 端口体系以 docker-compose.yml 为准（K8s 与 Compose 必须一致，否则服务
+# 互相找不到）。旧 K8s 清单曾用 20015/20016/20019/20020/9105/9106，
+# 与 compose 的 20002-20007 冲突，已全部纠正。
+#
+#   gateway         20001      容器内 APP_PORT
+#   user-service    20002
+#   agent-service   20003
+#   chat-service    20004
+#   skill-service   20005
+#   billing-service 20006
+#   ai-engine       20007 (HTTP) / 20008 (gRPC)
+#   web-admin       80
+#
+# 服务间寻址统一走 ClusterIP Service 名，不要写 127.0.0.1 / localhost。
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fettle-config
+  namespace: fettle
+  labels:
+    app.kubernetes.io/name: fettle
+    app.kubernetes.io/part-of: fettle
+data:
+  # ---- 服务端口 ----
+  GATEWAY_PORT: "20001"
+  USER_SERVICE_PORT: "20002"
+  AGENT_SERVICE_PORT: "20003"
+  CHAT_SERVICE_PORT: "20004"
+  SKILL_SERVICE_PORT: "20005"
+  BILLING_SERVICE_PORT: "20006"
+  AI_ENGINE_PORT: "20007"
+  AI_ENGINE_GRPC_PORT: "20008"
+  WEB_ADMIN_PORT: "80"
+
+  # ---- 运行模式 ----
+  APP_ENV: "production"
+  GIN_MODE: "release"
+  LOG_LEVEL: "info"
+
+  # ---- PostgreSQL ----
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_USER: "fettle"
+  DB_NAME: "fettle"
+
+  # ---- Redis ----
+  REDIS_ADDR: "redis:6379"
+  REDIS_DB: "0"
+
+  # ---- MongoDB（chat-service）----
+  MONGODB_URI: "mongodb://mongodb:27017"
+  MONGODB_DB: "fettle"
+
+  # ---- NATS ----
+  NATS_URL: "nats://nats:4222"
+
+  # ---- MinIO / 对象存储 ----
+  MINIO_ENDPOINT: "minio:9000"
+  MINIO_BUCKET: "fettle"
+  MINIO_USE_SSL: "false"
+
+  # ---- Milvus（ai-engine 向量检索；不启用可留空）----
+  MILVUS_HOST: ""
+  MILVUS_PORT: "19530"
+
+  # ---- 服务间地址（ClusterIP Service 名）----
+  USER_SERVICE_ADDR: "http://user-service:20002"
+  AGENT_SERVICE_ADDR: "http://agent-service:20003"
+  CHAT_SERVICE_ADDR: "http://chat-service:20004"
+  SKILL_SERVICE_ADDR: "http://skill-service:20005"
+  BILLING_SERVICE_ADDR: "http://billing-service:20006"
+  AI_ENGINE_ADDR: "http://ai-engine:20007"
+
+  # ---- CORS ----
+  # ⚠️ 不要写 "*"。backend/shared/middleware/cors.go 在 ALLOWED_ORIGINS="*"
+  #    时会回显 "*" 并同时返回 Access-Control-Allow-Credentials: true，
+  #    浏览器会直接拒绝该响应，跨域反而失效。必须填具体域名。
+  ALLOWED_ORIGINS: "https://admin.example.com,https://www.example.com"
+
+  # ---- 对象存储 / 数据库初始化 ----
+  TZ: "UTC"
+  POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+
+  # ---- PostgreSQL 初始化脚本 ----
+  init.sql: |
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    SET TIME ZONE 'UTC';
+    CREATE SCHEMA IF NOT EXISTS public;

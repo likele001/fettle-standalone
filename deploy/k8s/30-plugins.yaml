@@ -1,0 +1,284 @@
+# ============================================================================
+# 渠道插件 —— 5 个消息平台接入（wechat / wecom / dingtalk / feishu / douyin）
+# ----------------------------------------------------------------------------
+# 这些插件通过 NATS 与 chat-service 通信，本身不对外暴露端口，
+# 因此只保留 Deployment，Service 为 ClusterIP（无入站流量时可删）。
+#
+# 插件镜像构建来源：plugins/<name>/deploy/Dockerfile
+# 各插件的平台凭据（AppID / AppSecret / Token 等）请通过各自的 Secret
+# 注入，不要写在 values 或清单里。
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wechat-plugin
+  namespace: fettle
+  labels:
+    app: wechat-plugin
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wechat-plugin
+  template:
+    metadata:
+      labels:
+        app: wechat-plugin
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wechat-plugin
+          image: fettle/wechat-plugin:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: NATS_URL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: CHANNEL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: CHANNEL_SECRET
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wecom-plugin
+  namespace: fettle
+  labels:
+    app: wecom-plugin
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wecom-plugin
+  template:
+    metadata:
+      labels:
+        app: wecom-plugin
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wecom-plugin
+          image: fettle/wecom-plugin:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: NATS_URL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: CHANNEL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: CHANNEL_SECRET
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dingtalk-plugin
+  namespace: fettle
+  labels:
+    app: dingtalk-plugin
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dingtalk-plugin
+  template:
+    metadata:
+      labels:
+        app: dingtalk-plugin
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dingtalk-plugin
+          image: fettle/dingtalk-plugin:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: NATS_URL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: CHANNEL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: CHANNEL_SECRET
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feishu-plugin
+  namespace: fettle
+  labels:
+    app: feishu-plugin
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: feishu-plugin
+  template:
+    metadata:
+      labels:
+        app: feishu-plugin
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: feishu-plugin
+          image: fettle/feishu-plugin:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: NATS_URL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: CHANNEL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: CHANNEL_SECRET
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: douyin-plugin
+  namespace: fettle
+  labels:
+    app: douyin-plugin
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: douyin-plugin
+  template:
+    metadata:
+      labels:
+        app: douyin-plugin
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: douyin-plugin
+          image: fettle/douyin-plugin:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: NATS_URL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: CHANNEL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: CHANNEL_SECRET
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

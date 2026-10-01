@@ -1,0 +1,143 @@
+# ============================================================================
+# NetworkPolicy —— 最小化东西向流量
+# ----------------------------------------------------------------------------
+# 前置条件：集群 CNI 支持 NetworkPolicy（Calico / Cilium / Antrea 等）。
+#           Flannel 默认不支持，应用这些策略不会报错但也不生效。
+#
+# 设计：
+#   default-deny 所有入站 → 再逐条放行必要流量。
+#   DNS(53)、Prometheus 抓取等按需自行放开。
+# ============================================================================
+# 1) 默认拒绝所有入站
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: fettle
+  labels:
+    app.kubernetes.io/part-of: fettle
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# 2) 中间件：只接受本命名空间内 Pod 的访问
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-namespace-to-middleware
+  namespace: fettle
+  labels:
+    app.kubernetes.io/part-of: fettle
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - postgres
+          - redis
+          - mongodb
+          - nats
+          - minio
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 27017
+        - protocol: TCP
+          port: 4222
+        - protocol: TCP
+          port: 8222
+        - protocol: TCP
+          port: 9000
+        - protocol: TCP
+          port: 9001
+---
+# 3) gateway：放行来自 ingress-nginx 命名空间的流量
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-gateway
+  namespace: fettle
+  labels:
+    app.kubernetes.io/part-of: fettle
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 20001
+---
+# 4) web-admin：放行来自 ingress-nginx 命名空间的流量
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-web-admin
+  namespace: fettle
+  labels:
+    app.kubernetes.io/part-of: fettle
+spec:
+  podSelector:
+    matchLabels:
+      app: web-admin
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+---
+# 5) 后端服务：允许 gateway 与本命名空间内互相调用
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal-service-mesh
+  namespace: fettle
+  labels:
+    app.kubernetes.io/part-of: fettle
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - gateway
+          - user-service
+          - agent-service
+          - chat-service
+          - skill-service
+          - billing-service
+          - ai-engine
+          - wechat-plugin
+          - wecom-plugin
+          - dingtalk-plugin
+          - feishu-plugin
+          - douyin-plugin
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx

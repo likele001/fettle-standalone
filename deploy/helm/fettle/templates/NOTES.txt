@@ -1,0 +1,61 @@
+========================================================================
+ Fettle AI Agent Platform 已部署
+========================================================================
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart:     {{ .Chart.Name }}-{{ .Chart.Version }}
+
+{{ if .Values.ingress.enabled -}}
+入口地址：
+  后端 API : https{{ if not .Values.ingress.tls.enabled }} -> http{{ end }}://{{ .Values.ingress.apiHost }}
+{{- if .Values.ingress.adminHost }}
+  管理台   : https{{ if not .Values.ingress.tls.enabled }} -> http{{ end }}://{{ .Values.ingress.adminHost }}
+{{- end }}
+{{ else -}}
+Ingress 未启用。可通过 port-forward 访问：
+  kubectl -n {{ .Release.Namespace }} port-forward svc/gateway {{ .Values.services.gateway.port }}:{{ .Values.services.gateway.port }}
+{{ end }}
+------------------------------------------------------------------------
+检查部署状态：
+
+  kubectl -n {{ .Release.Namespace }} get pods
+  kubectl -n {{ .Release.Namespace }} get svc
+  kubectl -n {{ .Release.Namespace }} get pvc
+
+等待全部就绪：
+
+  kubectl -n {{ .Release.Namespace }} wait --for=condition=available \
+    --timeout=300s deploy --all
+
+查看网关日志：
+
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/gateway
+
+------------------------------------------------------------------------
+⚠️ 部署后必做：
+
+1. 确认 Secret 已注入真实凭据（chart 已做占位符硬校验，但仍需核对）：
+
+     kubectl -n {{ .Release.Namespace }} get secret \
+       {{ include "fettle.secretName" . }} -o jsonpath='{.data}' | head -c 200
+
+2. 不要使用出厂默认 MinIO 凭据（minioadmin/minioadmin）。
+
+3. CORS 白名单（global.allowedOrigins）必须填具体域名，不要用 "*"：
+   后端 middleware/cors.go 在 ALLOWED_ORIGINS="*" 时会回显 "*" 且附带
+   Access-Control-Allow-Credentials: true，浏览器会拒绝该响应。
+
+4. 生产环境把 secrets.externalSecret.enabled 设为 true，
+   交由 external-secrets / sealed-secrets 管理，避免密钥落在 helm 历史里。
+
+5. Helm 的 release secret 会保留 values 明文。如已用 --set 传入密钥，
+   可从 helm history 读到，建议改用 external-secrets 或 values 文件 + RBAC 限制。
+
+------------------------------------------------------------------------
+启用 Milvus（向量检索）需要额外步骤：
+  1. 在集群中部署 Milvus（推荐 milvus-operator）
+  2. helm upgrade ... --set infra.milvus.enabled=true \
+       --set infra.milvus.host=<milvus-svc>
+
+========================================================================

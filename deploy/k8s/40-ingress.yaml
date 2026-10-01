@@ -1,0 +1,70 @@
+# ============================================================================
+# Ingress —— 统一入口
+# ----------------------------------------------------------------------------
+# 前置条件：集群已装 ingress-nginx（或兼容控制器），且已配置 TLS 证书。
+# 域名请替换为真实域名，不要沿用示例的 example.com。
+#
+# 路由：
+#   https://api.<domain>    → gateway:20001     （后端 API）
+#   https://admin.<domain>  → web-admin:80      （管理台静态站）
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fettle-api
+  namespace: fettle
+  labels:
+    app.kubernetes.io/part-of: fettle
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    # SSE / WebSocket 长连接
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # ⚠️ 不要加 rewrite-target: / —— 会把 /api/v1/xxx 改写成 /xxx，
+    #    gateway 的路由前缀是 /api/v1，加了会导致全局 404。
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.example.com
+      secretName: fettle-api-tls
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 20001
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fettle-web-admin
+  namespace: fettle
+  labels:
+    app.kubernetes.io/part-of: fettle
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - admin.example.com
+      secretName: fettle-admin-tls
+  rules:
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-admin
+                port:
+                  number: 80

@@ -1,28 +1,77 @@
+{{/*
+============================================================================
+Ingress —— 后端 API + 管理台
+---------------------------------------------------------------------------
+⚠️ 不要加 nginx.ingress.kubernetes.io/rewrite-target: /
+   会把 /api/v1/xxx 改写成 /xxx，而 gateway 的路由前缀是 /api/v1，
+   加了会导致全局 404（原 chart 的 ingress.yaml 就有这个隐患）。
+============================================================================
+*/}}
 {{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: fettle-ingress
+  name: {{ include "fettle.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fettle.labels" . | nindent 4 }}
   annotations:
-    nginx.ingress.kubernetes.io/use-regex: "true"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.ingress.tls.enabled }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.apiHost }}
+      secretName: {{ .Values.ingress.tls.apiSecretName }}
+  {{- end }}
   rules:
-    - host: {{ .Values.ingress.host }}
+    - host: {{ .Values.ingress.apiHost }}
       http:
         paths:
-          - path: /api(/|$)(.*)
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: gateway
                 port:
-                  number: 20001
+                  number: {{ .Values.services.gateway.port }}
+{{- if .Values.ingress.adminHost }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "fettle.fullname" . }}-web-admin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fettle.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.tls.enabled }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.adminHost }}
+      secretName: {{ .Values.ingress.tls.adminSecretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.adminHost }}
+      http:
+        paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: web-admin
+                name: webAdmin
                 port:
-                  number: 80
+                  number: {{ .Values.services.webAdmin.port }}
+{{- end }}
 {{- end }}

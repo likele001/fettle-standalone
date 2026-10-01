@@ -1,0 +1,155 @@
+# ============================================================================
+# ai-engine —— 模型推理 / 向量检索（Python 服务）
+# ----------------------------------------------------------------------------
+# 端口 20007 (HTTP) / 20008 (gRPC)，与 docker-compose.yml 一致。
+# 内部调用受 AI_ENGINE_INTERNAL_TOKEN 保护，缺失时服务拒绝启动。
+# MILVUS_HOST 留空表示不启用向量检索（VectorStore 降级为空实现）。
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-engine
+  namespace: fettle
+  labels:
+    app: ai-engine
+    app.kubernetes.io/name: ai-engine
+    app.kubernetes.io/part-of: fettle
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-engine
+  template:
+    metadata:
+      labels:
+        app: ai-engine
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ai-engine
+          image: fettle/ai-engine:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 20007
+            - name: grpc
+              containerPort: 20008
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: APP_HTTP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: AI_ENGINE_PORT
+            - name: APP_GRPC_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: AI_ENGINE_GRPC_PORT
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: LOG_LEVEL
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: DB_NAME
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: REDIS_ADDR
+            - name: MILVUS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: MILVUS_HOST
+            - name: MILVUS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: fettle-config
+                  key: MILVUS_PORT
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: DB_PASSWORD
+            - name: AI_ENGINE_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: AI_ENGINE_INTERNAL_TOKEN
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fettle-secret
+                  key: REDIS_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 20007
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 20007
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-engine
+  namespace: fettle
+  labels:
+    app: ai-engine
+    app.kubernetes.io/part-of: fettle
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-engine
+  ports:
+    - name: http
+      port: 20007
+      targetPort: 20007
+    - name: grpc
+      port: 20008
+      targetPort: 20008
