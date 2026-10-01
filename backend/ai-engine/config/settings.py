@@ -7,7 +7,7 @@ from pydantic import Field
 class Settings(BaseSettings):
     """应用配置"""
     
-    model_config = {"protected_namespaces": (), "env_file": ".env", "case_sensitive": False}
+    model_config = {"protected_namespaces": (), "env_file": ".env", "case_sensitive": False, "extra": "ignore"}
     app_name: str = "ai-engine"
     app_env: str = "development"
     app_http_port: int = 9700

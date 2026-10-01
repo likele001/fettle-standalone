@@ -1,0 +1,21 @@
+[Unit]
+Description=Fettle Standalone AI Engine (Python / uvicorn)
+Documentation=file:/www/wwwroot/fettle-standalone/docs/
+After=network.target postgresql.service pgsql.service redis.service nats-standalone.service
+Wants=nats-standalone.service
+
+[Service]
+Type=simple
+WorkingDirectory=/www/wwwroot/fettle-standalone/backend/ai-engine
+# 前缀 - 表示文件不存在也不报错
+EnvironmentFile=-/www/wwwroot/fettle-standalone/backend/ai-engine/.env
+Environment=APP_HTTP_PORT=20007
+Environment=APP_GRPC_PORT=20008
+ExecStart=/www/wwwroot/fettle-standalone/backend/ai-engine/venv/bin/uvicorn main:app --host 0.0.0.0 --port 20007
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/fettle/standalone-ai-engine.log
+StandardError=append:/var/log/fettle/standalone-ai-engine.log
+
+[Install]
+WantedBy=multi-user.target

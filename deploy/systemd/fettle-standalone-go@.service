@@ -1,0 +1,29 @@
+[Unit]
+Description=Fettle Standalone %i
+Documentation=file:/www/wwwroot/fettle-standalone/docs/
+# pgsql.service 是宝塔/Debian init.d 经 systemd-sysv-generator 生成的单元名，
+# postgresql.service 是发行版 apt 包的名字 —— 两个都写上，哪台机器命中哪个都行。
+# standalone 用**自己的 NATS 实例**（4223），不要写成 nats.service（那是主栈的）。
+After=network.target postgresql.service pgsql.service redis.service nats-standalone.service
+Wants=nats-standalone.service
+
+[Service]
+Type=simple
+WorkingDirectory=/www/wwwroot/fettle-standalone/build
+# ⚠️ 关键：EnvironmentFile 由 root 的 PID1 读取后再交给子进程，
+#    所以 .env 保持 600 root:root 也不会让服务读不到。
+EnvironmentFile=/www/wwwroot/fettle-standalone/.env
+ExecStart=/www/wwwroot/fettle-standalone/build/%i
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+StandardOutput=append:/var/log/fettle/standalone-%i.log
+StandardError=append:/var/log/fettle/standalone-%i.log
+
+# 默认以 root 运行（与既有部署一致）。如需降权，取消下面两行注释，
+# 并确保 build/ 与 /var/log/fettle 已 chown 给该用户：
+# User=fettle-std
+# Group=fettle-std
+
+[Install]
+WantedBy=multi-user.target
