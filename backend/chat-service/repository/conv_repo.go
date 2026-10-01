@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -216,6 +217,29 @@ func (r *ConversationRepository) GetTenantPlanType(tenantID uuid.UUID) string {
 		return "free"
 	}
 	return planType
+}
+
+// GetTenantMessageQuota 返回租户当月可用的消息条数上限。
+// 口径唯一来源是 plans.max_messages_per_month（按 tenants.plan_type 关联），
+// 之前在 Go 里硬编码一张表副本，改套餐不生效且与后台展示不一致。
+// 找不到匹配的启用套餐时返回 found=false，由调用方决定降级策略。
+func (r *ConversationRepository) GetTenantMessageQuota(tenantID uuid.UUID) (limit int64, found bool) {
+	var limits []int64
+	err := r.db.Table("plans AS p").
+		Joins("JOIN tenants AS t ON t.plan_type = p.type").
+		Where("t.id = ? AND p.status = ? AND p.is_active = ?", tenantID, "active", true).
+		Where("p.deleted_at IS NULL").
+		Order("p.sort_order ASC").
+		Limit(1).
+		Pluck("p.max_messages_per_month", &limits).Error
+	if err != nil {
+		log.Printf("quota lookup failed for tenant %s: %v", tenantID, err)
+		return 0, false
+	}
+	if len(limits) == 0 {
+		return 0, false
+	}
+	return limits[0], true
 }
 
 // GetAgentWorkflowID 返回指定智能体绑定的工作流ID。

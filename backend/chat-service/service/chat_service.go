@@ -15,13 +15,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Message quota limits per plan type (monthly)
-var messageQuotaByPlan = map[string]int64{
-	"free":       100,
-	"pro":        5000,
-	"enterprise": 50000,
-}
-
 type ChatService struct {
 	convRepo       *repository.ConversationRepository
 	msgRepo        *repository.MessageRepository
@@ -79,19 +72,24 @@ func (s *ChatService) HasTenantOwnAPIKey(tenantID uuid.UUID) bool {
 	return count > 0
 }
 
-// checkMessageQuota checks if the tenant has exceeded their monthly message limit.
-// Returns an error with a user-friendly message if the limit is exceeded.
+// checkMessageQuota 校验租户当月消息额度。
+// 上限唯一来源为 plans.max_messages_per_month；查询失败或套餐缺失一律拒绝——
+// 额度是计费边界，此处 fail-open 等于把损失直接转嫁给平台。
 func (s *ChatService) checkMessageQuota(tenantID uuid.UUID) error {
-	planType := s.convRepo.GetTenantPlanType(tenantID)
-	limit, ok := messageQuotaByPlan[planType]
-	if !ok {
-		limit = 100 // default to free tier
+	limit, configured := s.convRepo.GetTenantMessageQuota(tenantID)
+	if !configured {
+		planType := s.convRepo.GetTenantPlanType(tenantID)
+		log.Printf("no active plan row for tenant %s (plan_type=%s)", tenantID, planType)
+		return fmt.Errorf("当前套餐（%s）未配置有效额度，请联系管理员", planType)
+	}
+	if limit <= 0 {
+		return fmt.Errorf("当前套餐未包含消息额度，请升级套餐后继续使用")
 	}
 
 	used, err := s.convRepo.CountMonthlyMessagesByTenant(tenantID)
 	if err != nil {
 		log.Printf("Failed to count monthly messages for tenant %s: %v", tenantID, err)
-		return nil // allow message on counting error (fail-open)
+		return fmt.Errorf("系统繁忙，暂时无法确认额度，请稍后重试")
 	}
 
 	if used >= limit {
@@ -615,15 +613,16 @@ func (s *ChatService) GetRecentConversations(tenantID string, limit int) ([]mode
 }
 
 // GetQuotaInfo returns the tenant's current message quota usage.
+// 与 checkMessageQuota 同源（plans 表），否则前端展示的额度会与实际放行口径不一致。
 func (s *ChatService) GetQuotaInfo(tenantID string) (used, limit int64, planType string, err error) {
 	tID, err := uuid.Parse(tenantID)
 	if err != nil {
 		return 0, 0, "", errors.New("invalid tenant id")
 	}
 	planType = s.convRepo.GetTenantPlanType(tID)
-	limit = messageQuotaByPlan[planType]
-	if limit == 0 {
-		limit = 100
+	limit, configured := s.convRepo.GetTenantMessageQuota(tID)
+	if !configured {
+		return 0, 0, planType, fmt.Errorf("当前套餐（%s）未配置有效额度", planType)
 	}
 	used, err = s.convRepo.CountMonthlyMessagesByTenant(tID)
 	if err != nil {
