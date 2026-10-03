@@ -14,7 +14,7 @@ services:
     restart: always
 
   minio:
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    image: rancher/mirrored-minio-minio:RELEASE.2023-07-07T07-13-57Z
     container_name: fettle-milvus-minio
     environment:
       MINIO_ACCESS_KEY: CHANGE_ME

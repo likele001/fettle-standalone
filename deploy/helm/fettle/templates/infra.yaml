@@ -561,7 +561,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: mc
-          image: minio/mc:latest
+          image: rancher/mirrored-minio-mc:RELEASE.2023-06-28T21-54-17Z
           command:
             - sh
             - -c
